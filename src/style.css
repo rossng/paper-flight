@@ -41,7 +41,9 @@
 [data-mode=workbench] #sheet{inset:0 15%;width:70%;height:100%}
 [data-mode=workbench] .fold-progress{top:30px;left:6px}
 [data-mode=workbench] .desk-sticker{top:35px;right:6px}
-[data-mode=workbench] .desk-pencil{top:156px;right:7%;height:100px;transform:rotate(75deg)}
+[data-mode=workbench] .desk-pencil{top:auto;bottom:78px;right:56px;height:155px;transform:rotate(25deg);pointer-events:none}
+[data-mode=throw] .desk-pencil{display:none}
+@media(max-width:1150px){.desk-pencil{display:none}}
 [data-mode=workbench] .mat-label{bottom:12px}
 #fold-prompt{position:relative;inset:auto;transform:none;justify-self:center;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;width:min(900px,100%);height:auto;padding-block:6px}
 #fold-prompt>div:first-child{display:grid;gap:6px;min-width:0}
