@@ -26,7 +26,7 @@ const layoutCheck=`(()=>{
  if(getComputedStyle(pencil).display!=='none'){
   const a=pencil.getBoundingClientRect(),b=sticker.getBoundingClientRect();
   if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top)failures.push('pencil overlaps sticker');
-  if(a.bottom>sheet.bottom+1)failures.push('pencil spills below mat');
+  for(const area of [prompt,tools])if(a.left<area.right&&a.right>area.left&&a.top<area.bottom&&a.bottom>area.top)failures.push('pencil overlaps controls');
  }
 
  if(text.bottom>description.top+1)failures.push('title overlaps description');
