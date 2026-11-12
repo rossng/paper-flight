@@ -11,7 +11,7 @@ for(const design of ['legacy','dart'])for(const material of ['paper','tissue'] a
   const parameters={...DEFAULTS,...materialSettings(material),speed:7.15,pitch:15,elevation:11.8,launchDuration};
   const sim=new Simulation(parameters,design==='legacy'?undefined:designMesh(design,parameters));sim.launch();
   let firstStepAirForce=0,earlyDeformation=0;
-  while(sim.status==='flying'){
+  while(sim.active){
    sim.step();if(sim.trail.length===2)firstStepAirForce=Math.hypot(...sim.metrics().force);
    if(sim.time<=.35+1e-12)earlyDeformation=Math.max(earlyDeformation,sim.deformation().rms);
   }

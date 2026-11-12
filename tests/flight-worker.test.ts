@@ -63,11 +63,22 @@ test('a prepared prefix stays invisible until release, then follows display time
 test('forecast landing does not land the displayed plane early and preserves the final detached replay',()=>{
  const parameters={height:.2,speed:0},preview=new Simulation(parameters),worker=new LocalWorker();
  const runner=new FlightRunner(preview,new FlightRecording(),()=>worker.port(),{precompute:true});worker.drain();
- assert.equal(worker.terminated,true);assert.equal(runner.canActivate,true);assert.equal(preview.status,'ready');
+ assert.equal(worker.terminated,false);assert.equal(runner.canActivate,true);assert.equal(preview.status,'ready');
  const {simulation,recording}=launched(parameters);runner.activate(simulation,recording);runner.advance(.01);assert.equal(simulation.status,'flying');
- while(simulation.status==='flying')runner.advance(.01);
- const expected=launched(parameters);while(expected.simulation.status==='flying'){expected.simulation.step();expected.recording.capture(expected.simulation);}
- assert.equal(simulation.status,'landed');assert.deepEqual(simulation.positions,expected.simulation.positions);assert.deepEqual(recording.frames,expected.recording.frames);
+ const statuses=new Set<string>();
+ while(simulation.active){
+  worker.drain();runner.advance(.01);
+  if(simulation.touchdown&&!statuses.has('settling')){
+   const time=simulation.time,pose=structuredClone(simulation.positions);
+   runner.setPaused(true);worker.drain();runner.advance(.1);
+   assert.equal(simulation.time,time);assert.deepEqual(simulation.positions,pose);
+   runner.setPaused(false);
+  }
+  statuses.add(simulation.status);
+ }
+ assert.ok(statuses.has('settling'));assert.equal(worker.terminated,true);
+ const expected=launched(parameters);while(expected.simulation.active){expected.simulation.step();expected.recording.capture(expected.simulation);}
+ assert.equal(simulation.status,'landed');assert.deepEqual(simulation.touchdown,expected.simulation.touchdown);assert.equal(simulation.groundDistance,expected.simulation.groundDistance);assert.deepEqual(simulation.positions,expected.simulation.positions);assert.deepEqual(recording.frames,expected.recording.frames);
 });
 
 test('startup failure falls back, but failure after accepting worker state interrupts instead of integrating a mirror',()=>{

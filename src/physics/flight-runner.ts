@@ -1,4 +1,4 @@
-import { FixedClock, FRAME_PHYSICS_BUDGET_MS, type Simulation, type Parameters } from './simulation';
+import { FixedClock, FRAME_PHYSICS_BUDGET_MS, isActiveStatus, type Simulation, type Parameters } from './simulation';
 import { FlightRecording } from '../rendering/flight-recording';
 import { applyFlightState, type FlightState, type FlightResponse } from './flight-messages';
 
@@ -46,7 +46,7 @@ export class FlightRunner {
     // is bounded by outer steps, even for the 96-substep adaptive ceiling.
     if(this.states.at(-1)?.frames.length===0)this.states.pop();
     this.states.push(message);
-    if(message.status!=='flying'){this.worker?.terminate();this.worker=undefined;}
+    if(!isActiveStatus(message.status)){this.worker?.terminate();this.worker=undefined;}
   }
   private fail(message:string){
     if(this.disposed)return;
@@ -57,7 +57,7 @@ export class FlightRunner {
     this.clock.reset();
   }
   advance(elapsed:number){
-    if(this.disposed||!this.active||this.frozen||this.simulation.status!=='flying')return;
+    if(this.disposed||!this.active||this.frozen||!this.simulation.active)return;
     if(this.worker||this.sequence>0){
       this.presentationTime=Math.min(this.computedTime,this.presentationTime+Math.max(0,Math.min(.1,elapsed)));
       let latest:FlightState|undefined;
@@ -69,7 +69,7 @@ export class FlightRunner {
       const target=this.presentationTime+FLIGHT_LOOKAHEAD;
       if(target>this.target+1e-6){this.target=target;this.worker?.postMessage({type:'target',time:target});}
     }else{
-      const deadline=performance.now()+FRAME_PHYSICS_BUDGET_MS,shouldYield=()=>performance.now()>=deadline||this.simulation.status!=='flying';
+      const deadline=performance.now()+FRAME_PHYSICS_BUDGET_MS,shouldYield=()=>performance.now()>=deadline||!this.simulation.active;
       this.clock.advance(elapsed,()=>{const complete=this.simulation.stepUntil(shouldYield);if(complete)this.recording.capture(this.simulation);return complete;},shouldYield);
     }
   }

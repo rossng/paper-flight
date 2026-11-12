@@ -2,6 +2,7 @@ import { buildMembranes, solveMembrane, membraneAlphas, type Membrane } from './
 import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
 import { buildContactCandidates, detectLayerContacts, solveLayerContact, type ContactCandidate } from './layer-contact';
 import { SelfContactSolver } from './self-contact';
+import { GroundContactSolver, GROUND_HEIGHT, type GroundSettings } from './ground-contact';
 import { sheetMaterial, prepareMaterialGeometry, hingeStiffness, updateCreasePlasticity, type SheetMaterial } from './sheet-material';
 import { createDart, hingeAngle, type PaperMesh } from '../geometry/dart';
 import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynamics';
@@ -14,14 +15,19 @@ export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
-export type Status='ready'|'flying'|'landed'|'finished'|'error';
-export interface Metrics { time:number; speed:number; altitude:number; distance:number; pathLength:number; deformation:number; bend:number; maxStrain:number; force:V3; stallFraction:number; center:V3 }
+export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export type Status='ready'|'flying'|'settling'|'landed'|'finished'|'error';
+export const isActiveStatus=(status:Status)=>status==='flying'||status==='settling';
+export interface Touchdown { time:number; center:V3; distance:number }
+export interface Metrics { time:number; airTime:number; flightDistance:number; groundDistance:number; speed:number; altitude:number; distance:number; pathLength:number; deformation:number; bend:number; maxStrain:number; force:V3; stallFraction:number; center:V3 }
 export class Simulation {
   tributaryArea:number[]; membranes:Membrane[];
   surface:LiftingSurface; material:SheetMaterial; contactCandidates:ContactCandidate[];
   selfContact:SelfContactSolver;
+  groundContact:GroundContactSolver;
+  touchdown?:Touchdown;groundDistance=0;
+  private quietTime=0;
   mesh:PaperMesh; positions:V3[]=[]; velocities:V3[]=[]; forces:V3[]=[]; invMass:number[];
   panels:PanelLoad[]=[]; parameters:Parameters; status:Status='ready'; time=0; pathLength=0;
   start:V3=[0,0,0]; trail:V3[]=[]; peakDeformation=0; lastCenter:V3=[0,0,0];
@@ -35,8 +41,10 @@ export class Simulation {
     this.membranes=buildMembranes(this.mesh);
     this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
     this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
-    this.contactCandidates=buildContactCandidates(this.mesh);this.selfContact=new SelfContactSolver(this.mesh);this.reset();
+    this.contactCandidates=buildContactCandidates(this.mesh);this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);this.reset();
   }
+  get active(){return isActiveStatus(this.status);}
+  get groundHeight(){return GROUND_HEIGHT+this.material.thickness/2;}
   center(array=this.positions):V3 {
     const c:V3=[0,0,0],mass=this.mesh.masses.reduce((a,b)=>a+b,0);
     for(let i=0;i<array.length;i++)for(let d=0;d<3;d++)c[d]+=array[i][d]*this.mesh.masses[i]/mass;
@@ -45,6 +53,7 @@ export class Simulation {
   reset() {
     this.pendingStep=undefined;
     this.selfContact.reset();
+    this.groundContact.reset();this.touchdown=undefined;this.groundDistance=0;this.quietTime=0;
     for(const c of this.contactCandidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
     for(const h of this.mesh.hinges){h.plasticOffset=0;h.plasticAccumulated=0;h.lambda=0;}
     const angle=radians(this.parameters.pitch),c=Math.cos(angle),s=Math.sin(angle);
@@ -75,7 +84,7 @@ export class Simulation {
   /** Yield only between complete internal substeps. True means an outer step
    * finished and may be recorded. Pausing keeps the iterator; reset discards it. */
   stepUntil(shouldYield:()=>boolean):boolean {
-    if(this.status!=='flying'&&!this.pendingStep)return true;
+    if(!this.active&&!this.pendingStep)return true;
     this.pendingStep??=this.integrateStep();
     do {
       if(this.pendingStep.next().done){this.pendingStep=undefined;return true;}
@@ -83,7 +92,7 @@ export class Simulation {
     return false;
   }
   private *integrateStep():Generator<void,void,void> {
-    if(this.status!=='flying')return;
+    if(!this.active)return;
     // Very light sheets accelerate much faster under panel loads. Resolve them
     // with smaller substeps while keeping the recorded 120 Hz clock unchanged.
     // Explicit aerodynamic damping rate is ~ rho V pi A/m for a 2pi slope.
@@ -100,7 +109,15 @@ export class Simulation {
     // load grows and coincident folded layers first open in crosswind.
     const launchSubsteps=this.parameters.speed!==0&&this.time<this.parameters.launchDuration
       ?Math.ceil(90*FIXED_DT/this.parameters.launchDuration):0;
-    const minimum=Math.max(this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS,launchSubsteps);
+    // Resolve near-floor motion in roughly 2 mm increments, including lateral
+    // motion that can tip a contacting nose/wing. Explicit substeps still win.
+    let contactSubsteps=0;
+    for(let i=0;i<this.positions.length;i++){
+      const speed=length(this.velocities[i])+launchDelta;
+      if(this.positions[i][1]-this.groundHeight<.03+speed*FIXED_DT)
+        contactSubsteps=Math.max(contactSubsteps,speed>.5?12:SUBSTEPS,Math.ceil(FIXED_DT*(speed+this.parameters.gravity*FIXED_DT)/.002));
+    }
+    const minimum=Math.max(this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS,launchSubsteps,contactSubsteps);
     const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,Math.ceil(FIXED_DT*rate/.8))),dt=FIXED_DT/substeps;
     const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
     const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
@@ -126,6 +143,7 @@ export class Simulation {
       for(const h of this.mesh.hinges)h.lambda=0;
       const contacts=this.parameters.layerModel==='contact'?detectLayerContacts(this.positions,old,this.contactCandidates):[];
       this.selfContact.beginStep();
+      this.groundContact.reset();
       for(let iteration=0;iteration<this.parameters.iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
@@ -145,16 +163,51 @@ export class Simulation {
           if(iteration===0||iteration===this.parameters.iterations-1)this.selfContact.detect(old,this.positions);
           this.selfContact.solve(this.positions,this.invMass,forward);
         }
+        this.groundContact.solve(this.positions,old,this.invMass,this.groundHeight,this.parameters);
       }
-      if(this.parameters.layerModel==='contact')for(let pass=0;pass<4;pass++)this.selfContact.solve(this.positions,this.invMass,pass%2===0);
+      const groundCleanup=this.groundContact.touched;
+      for(let pass=0;pass<(groundCleanup?32:this.parameters.layerModel==='contact'?4:0);pass++){
+        // A pinned nose can concentrate compression into a few very short
+        // edges. Reconcile the no-tearing envelope with both contact systems.
+        if(groundCleanup)for(let j=0;j<this.mesh.edges.length;j++)limitEdgeStrain(this.positions,this.invMass,this.mesh.edges[pass%2===0?j:this.mesh.edges.length-1-j]);
+        if(this.parameters.layerModel==='contact')this.selfContact.solve(this.positions,this.invMass,pass%2===0);
+        this.groundContact.solve(this.positions,old,this.invMass,this.groundHeight,this.parameters);
+        // Most contacts converge in eight sweeps. Small triangles in dense
+        // folds need extra reconciliation at impact, not a looser strain bound.
+        if(groundCleanup&&pass>=7&&(pass+1)%4===0&&this.mesh.edges.every(e=>Math.abs(length(sub(this.positions[e.a],this.positions[e.b]))/e.rest-1)<.05))break;
+      }
       for(const h of this.mesh.hinges)if(h.crease)updateCreasePlasticity(h,hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]),this.material);
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)this.velocities[i][d]=(this.positions[i][d]-old[i][d])/dt;
       dampEdges(this.positions,this.velocities,this.invMass,this.mesh.edges,1-Math.exp(-18*dt));
+      const supported=this.groundContact.solveVelocity(this.positions,this.velocities,this.groundHeight,this.parameters);
       this.time+=dt;
       if(this.positions.some(p=>p.some(v=>!Number.isFinite(v)||Math.abs(v)>1000))){this.positions=old;this.velocities=old.map(()=>[0,0,0]);this.status='error';return;}
-      const center=this.center();this.pathLength+=length(sub(center,this.lastCenter));this.lastCenter=center;
-      if(this.positions.some(p=>p[1]<=0)){this.status='landed';break;}
-      if(this.time>=12){this.status='finished';break;}
+      const center=this.center();this.pathLength+=length(sub(center,this.lastCenter));
+      if(this.touchdown)this.groundDistance+=Math.hypot(center[0]-this.lastCenter[0],center[2]-this.lastCenter[2]);
+      this.lastCenter=center;
+      if(!this.touchdown&&this.groundContact.touched){
+        this.touchdown={time:this.time,center:[...center],distance:Math.hypot(center[0]-this.start[0],center[2]-this.start[2])};
+        this.status='settling';
+      }
+      // Mass-weighted world-space kinetic energy includes rocking and flutter.
+      // A tiny layer vertex may jitter while the sheet is otherwise at rest;
+      // an additional peak-speed limit prevents sleeping a visibly moving tip.
+      let speedSquared=0,mass=0,peakSpeedSquared=0;
+      for(let i=0;i<this.velocities.length;i++){
+        const v=this.velocities[i],sq=dot(v,v),m=this.mesh.masses[i];
+        speedSquared+=m*sq;mass+=m;peakSpeedSquared=Math.max(peakSpeedSquared,sq);
+      }
+      const nearGround=this.positions.some(p=>p[1]<=this.groundHeight+.0002);
+      this.quietTime=nearGround&&this.time>=this.parameters.launchDuration&&speedSquared/mass<.01**2&&peakSpeedSquared<.1**2?this.quietTime+dt:0;
+      // Allow submillimetre contact chatter during the dwell, but finish only
+      // on a substep with actual compressive support from the floor.
+      if(this.touchdown&&supported&&this.quietTime>=.5){
+        for(const v of this.velocities)v.fill(0);
+        this.status='landed';break;
+      }
+      // A gust can keep a light sheet moving. Report a timeout honestly, and
+      // allow a late touchdown its own full settling window.
+      if(this.touchdown?this.time-this.touchdown.time>=8:this.time>=12){this.status='finished';break;}
       if(substep+1<substeps)yield;
     }
     this.trail.push(this.center());
@@ -183,7 +236,8 @@ export class Simulation {
     let count=0;
     for(const h of this.mesh.hinges)if(!h.crease){const angle=hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]);bend+=wrapAngle(angle-h.rest)**2;count++;}
     let maxStrain=0;for(const e of this.mesh.edges)maxStrain=Math.max(maxStrain,Math.abs(length(sub(this.positions[e.a],this.positions[e.b]))/e.rest-1));
-    return {time:this.time,speed:length(sub(velocity,airVelocity(this.parameters,this.time,center))),altitude:center[1],distance:Math.hypot(center[0]-this.start[0],center[2]-this.start[2]),pathLength:this.pathLength,deformation:this.deformation().rms,bend:Math.sqrt(bend/Math.max(count,1))*180/Math.PI,maxStrain,force,stallFraction:area?stall/area:0,center};
+    const distance=Math.hypot(center[0]-this.start[0],center[2]-this.start[2]);
+    return {time:this.time,airTime:this.touchdown?.time??this.time,flightDistance:this.touchdown?.distance??distance,groundDistance:this.groundDistance,speed:length(sub(velocity,airVelocity(this.parameters,this.time,center))),altitude:center[1],distance,pathLength:this.pathLength,deformation:this.deformation().rms,bend:Math.sqrt(bend/Math.max(count,1))*180/Math.PI,maxStrain,force,stallFraction:area?stall/area:0,center};
   }
 }
 /** Rendering can slow down under load, but never takes a larger physical timestep. */

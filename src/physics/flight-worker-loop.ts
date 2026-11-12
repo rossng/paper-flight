@@ -20,7 +20,7 @@ export class FlightWorkerLoop {
     this.requestTick();
   }
   private requestTick(){
-    if(this.queued||this.paused||this.failed||this.simulation?.status!=='flying'||this.simulation.time>=this.target-1e-12)return;
+    if(this.queued||this.paused||this.failed||!this.simulation?.active||this.simulation.time>=this.target-1e-12)return;
     this.queued=true;
     this.schedule(()=>{this.queued=false;try{this.tick();}catch(error){this.failed=true;this.send({type:'error',message:String(error)});}});
   }
@@ -31,14 +31,14 @@ export class FlightWorkerLoop {
   private tick(){
     const simulation=this.simulation;if(!simulation||this.paused)return;
     const deadline=this.now()+FRAME_PHYSICS_BUDGET_MS;
-    const shouldYield=()=>this.now()>=deadline||simulation.status!=='flying'||simulation.time>=this.target-1e-12;
-    while(simulation.status==='flying'&&simulation.time<this.target-1e-12){
+    const shouldYield=()=>this.now()>=deadline||!simulation.active||simulation.time>=this.target-1e-12;
+    while(simulation.active&&simulation.time<this.target-1e-12){
       const time=simulation.time,start=this.now(),complete=simulation.stepUntil(shouldYield);
       this.workMs+=this.now()-start;
       if(complete)this.recording.capture(simulation);
       // Keep every 120 Hz frame. Partial poses keep slow outer steps visible;
       // the receiver may coalesce unfinished poses but never recording frames.
-      if(simulation.time!==time||simulation.status!=='flying')this.emit();
+      if(simulation.time!==time||!simulation.active)this.emit();
       if(shouldYield())break;
     }
     this.requestTick();

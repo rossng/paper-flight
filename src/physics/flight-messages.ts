@@ -1,5 +1,5 @@
 import type { PaperMesh } from '../geometry/dart';
-import type { Simulation, Parameters, Status } from './simulation';
+import type { Simulation, Parameters, Status, Touchdown } from './simulation';
 import type { V3 } from './math';
 import type { FlightFrame } from '../rendering/flight-recording';
 
@@ -7,6 +7,7 @@ export type FlightRequest = {type:'launch';parameters:Parameters;mesh:PaperMesh;
   | {type:'pause';paused:boolean} | {type:'target';time:number};
 export interface FlightState {
   type:'state';sequence:number;time:number;status:Status;pathLength:number;peakDeformation:number;lastCenter:V3;
+  touchdown?:Touchdown;groundDistance:number;
   positions:Float64Array;velocities:Float64Array;forces:Float64Array;panels:Float64Array;plastic:Float64Array;
   contacts:{narrowTests:number;vertexFace:number;edgeEdge:number};
   frames:FlightFrame[];workMs:number;
@@ -27,6 +28,7 @@ export function flightState(sim:Simulation,frames:FlightFrame[],sequence:number,
   });
   sim.mesh.hinges.forEach((h,i)=>{plastic[2*i]=h.plasticOffset??0;plastic[2*i+1]=h.plasticAccumulated??0;});
   return {type:'state',sequence,time:sim.time,status:sim.status,pathLength:sim.pathLength,peakDeformation:sim.peakDeformation,lastCenter:[...sim.lastCenter],
+    touchdown:sim.touchdown?{...sim.touchdown,center:[...sim.touchdown.center]}:undefined,groundDistance:sim.groundDistance,
     positions:pack(sim.positions),velocities:pack(sim.velocities),forces:pack(sim.forces),panels,plastic,contacts:{...sim.selfContact.stats},frames,workMs};
 }
 export function flightTransfers(state:FlightState):ArrayBuffer[]{
@@ -49,5 +51,6 @@ export function applyFlightState(sim:Simulation,state:FlightState){
   }
   sim.mesh.hinges.forEach((h,i)=>{h.plasticOffset=state.plastic[2*i];h.plasticAccumulated=state.plastic[2*i+1];});
   sim.time=state.time;sim.status=state.status;sim.pathLength=state.pathLength;sim.peakDeformation=state.peakDeformation;
+  sim.touchdown=state.touchdown?{...state.touchdown,center:[...state.touchdown.center]}:undefined;sim.groundDistance=state.groundDistance;
   sim.lastCenter=[...state.lastCenter];sim.selfContact.stats={...state.contacts};
 }
