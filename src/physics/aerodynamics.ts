@@ -1,7 +1,8 @@
+import { liftingSurfaceLoads, type LiftingSurface } from './lifting-surface';
 import { clamp, cross, dot, length, scale, sub, unit, type V3 } from './math';
 import type { Face } from '../geometry/dart';
 export interface PanelLoad { center: V3; force: V3; lift: V3; alpha: number; area: number; stalled: boolean }
-export interface AeroSettings { density: number; wind: V3; enabled: boolean; areaWeights?:number[]; windAt?:(position:V3)=>V3 }
+export interface AeroSettings { density: number; wind: V3; enabled: boolean; model?:'coupled'|'panels'; surface?:LiftingSurface; areaWeights?:number[]; windAt?:(position:V3)=>V3 }
 /** Quasi-steady low-aspect-ratio polar with a smooth, unvalidated separated-flow blend. */
 export function coefficients(alpha: number) {
   const a=Math.abs(alpha), start=15*Math.PI/180, end=30*Math.PI/180;
@@ -13,6 +14,7 @@ export function coefficients(alpha: number) {
 }
 /** Reads CURRENT vertices, areas, normals and velocities every substep. No rest normals. */
 export function aerodynamicLoads(positions: V3[], velocities: V3[], faces: Face[], settings: AeroSettings, out: V3[]): PanelLoad[] {
+  if(settings.surface&&settings.model!=='panels')return liftingSurfaceLoads(positions,velocities,faces,settings,out);
   const panels: PanelLoad[]=[];
   for(const [fi,[a,b,c]] of faces.entries()) {
     const pa=positions[a],pb=positions[b],pc=positions[c];

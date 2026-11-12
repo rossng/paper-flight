@@ -1,22 +1,34 @@
+import { buildMembranes, solveMembrane, type Membrane } from './membrane';
+import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
+import { buildContactCandidates, detectLayerContacts, solveLayerContact, type ContactCandidate } from './layer-contact';
+import { sheetMaterial, prepareMaterialGeometry, hingeStiffness, updateCreasePlasticity, type SheetMaterial } from './sheet-material';
 import { createDart, hingeAngle, type PaperMesh } from '../geometry/dart';
 import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynamics';
 import { airVelocity } from './weather';
-import type { MaterialId } from './materials';
-import { dampEdges, solveEdge, solveHinge, solveLayerTie } from './constraints';
+import { materialSettings, type MaterialId } from './materials';
+import { dampEdges, limitEdgeStrain, solveHinge, solveLayerTie } from './constraints';
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
 export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
-export interface Parameters { speed:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={speed:6,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export interface Parameters { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'landed'|'finished'|'error';
 export interface Metrics { time:number; speed:number; altitude:number; distance:number; pathLength:number; deformation:number; bend:number; maxStrain:number; force:V3; stallFraction:number; center:V3 }
 export class Simulation {
+  tributaryArea:number[]; membranes:Membrane[];
+  surface:LiftingSurface; material:SheetMaterial; contactCandidates:ContactCandidate[];
   mesh:PaperMesh; positions:V3[]=[]; velocities:V3[]=[]; forces:V3[]=[]; invMass:number[];
   panels:PanelLoad[]=[]; parameters:Parameters; status:Status='ready'; time=0; pathLength=0;
   start:V3=[0,0,0]; trail:V3[]=[]; peakDeformation=0; lastCenter:V3=[0,0,0];
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
-    this.parameters={...DEFAULTS,...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
-    this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);this.reset();
+    this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
+    this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);
+    this.tributaryArea=this.mesh.rest.map(()=>0);
+    for(const [a,b,c] of this.mesh.faces){const area=length(cross(sub(this.mesh.rest[b],this.mesh.rest[a]),sub(this.mesh.rest[c],this.mesh.rest[a])))/6;for(const i of [a,b,c])this.tributaryArea[i]+=area;}
+    this.membranes=buildMembranes(this.mesh);
+    this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
+    this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
+    this.contactCandidates=buildContactCandidates(this.mesh);this.reset();
   }
   center(array=this.positions):V3 {
     const c:V3=[0,0,0],mass=this.mesh.masses.reduce((a,b)=>a+b,0);
@@ -24,6 +36,8 @@ export class Simulation {
     return c;
   }
   reset() {
+    for(const c of this.contactCandidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
+    for(const h of this.mesh.hinges){h.plasticOffset=0;h.plasticAccumulated=0;h.lambda=0;}
     const angle=radians(this.parameters.pitch),c=Math.cos(angle),s=Math.sin(angle);
     const yaw=radians(this.parameters.heading),cy=Math.cos(yaw),sy=Math.sin(yaw);
     this.positions=this.mesh.rest.map(([x,y,z])=>{const px=c*x-s*y;return [cy*px-sy*z,s*x+c*y,sy*px+cy*z];});
@@ -35,14 +49,25 @@ export class Simulation {
   }
   launch(){this.reset();const yaw=radians(this.parameters.heading),e=radians(this.parameters.elevation),v=this.parameters.speed;this.velocities=this.positions.map(()=>[v*Math.cos(e)*Math.cos(yaw),v*Math.sin(e),v*Math.cos(e)*Math.sin(yaw)]);this.status='flying';}
   aeroSettings(time=this.time):AeroSettings {
-    return {enabled:this.parameters.aero,density:this.parameters.density,wind:this.parameters.wind,areaWeights:this.mesh.aeroWeights,
+    return {model:this.parameters.aeroModel,surface:this.surface,enabled:this.parameters.aero,density:this.parameters.density,wind:this.parameters.wind,areaWeights:this.mesh.aeroWeights,
       windAt:this.parameters.gusts||this.parameters.turbulence?position=>airVelocity(this.parameters,time,position):undefined};
   }
   step() {
     if(this.status!=='flying')return;
     // Very light sheets accelerate much faster under panel loads. Resolve them
     // with smaller substeps while keeping the recorded 120 Hz clock unchanged.
-    const substeps=this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS,dt=FIXED_DT/substeps;
+    // Explicit aerodynamic damping rate is ~ rho V pi A/m for a 2pi slope.
+    // Resolve the fastest vertex mode; extra substeps preserve the 120 Hz outer clock.
+    let rate=0;
+    if(this.parameters.aero)for(let i=0;i<this.positions.length;i++){
+      const speed=length(sub(this.velocities[i],airVelocity(this.parameters,this.time,this.positions[i])));
+      rate=Math.max(rate,this.parameters.density*Math.PI*speed*this.tributaryArea[i]*this.invMass[i]);
+    }
+    const minimum=this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS;
+    const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,Math.ceil(FIXED_DT*rate/.8))),dt=FIXED_DT/substeps;
+    const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
+    const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
+    const rigidity=this.mesh.hinges.map(h=>hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1));
     for(let substep=0;substep<substeps;substep++){
       const old=this.positions.map(p=>[...p] as V3);
       for(let i=0;i<this.forces.length;i++){this.forces[i][0]=0;this.forces[i][1]=-this.parameters.gravity*this.mesh.masses[i];this.forces[i][2]=0;}
@@ -52,19 +77,24 @@ export class Simulation {
         this.positions[i][d]+=dt*this.velocities[i][d];
       }
       for(const e of this.mesh.edges)e.lambda=0;
+      for(const t of this.membranes)t.lambda=[0,0,0];
       for(const h of this.mesh.hinges)h.lambda=0;
-      for(let iteration=0;iteration<24;iteration++){
+      const contacts=this.parameters.layerModel==='contact'?detectLayerContacts(this.positions,old,this.contactCandidates):[];
+      for(let iteration=0;iteration<this.parameters.iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
-        for(let j=0;j<this.mesh.edges.length;j++)solveEdge(this.positions,this.invMass,this.mesh.edges[forward?j:this.mesh.edges.length-1-j],2e-8,dt);
+        for(let j=0;j<this.membranes.length;j++)solveMembrane(this.positions,this.invMass,this.membranes[forward?j:this.membranes.length-1-j],this.material,dt);
         for(let j=0;j<this.mesh.hinges.length;j++){
           const h=this.mesh.hinges[forward?j:this.mesh.hinges.length-1-j];
           // Effective bending rigidity D; crease stiffness is an independent torsional spring.
-          const k=(h.crease?0.0025*this.parameters.crease:0.00035*this.parameters.stiffness)*h.weight*(h.layerStiffness??1);
+          const k=rigidity[forward?j:this.mesh.hinges.length-1-j];
           solveHinge(this.positions,this.invMass,h,1/Math.max(k,1e-8),dt);
         }
-        for(const tie of this.mesh.layerTies??[])solveLayerTie(this.positions,this.invMass,tie);
+        if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(this.positions,this.invMass,tie);
+        for(const contact of contacts)solveLayerContact(this.positions,this.invMass,contact,this.material.friction);
+        for(let j=0;j<this.mesh.edges.length;j++)limitEdgeStrain(this.positions,this.invMass,this.mesh.edges[forward?j:this.mesh.edges.length-1-j]);
       }
+      for(const h of this.mesh.hinges)if(h.crease)updateCreasePlasticity(h,hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]),this.material);
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)this.velocities[i][d]=(this.positions[i][d]-old[i][d])/dt;
       dampEdges(this.positions,this.velocities,this.invMass,this.mesh.edges,1-Math.exp(-18*dt));
       this.time+=dt;

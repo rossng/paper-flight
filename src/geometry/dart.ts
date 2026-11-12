@@ -1,9 +1,10 @@
 import { cross, length, sub, radians, type V3 } from '../physics/math';
 export type Face = [number, number, number];
-export interface Edge { a: number; b: number; rest: number; lambda: number }
-export interface Hinge { ids: [number, number, number, number]; rest: number; crease: boolean; weight: number; lambda: number; layerStiffness?:number }
+export interface Edge { a: number; b: number; rest: number; lambda: number; materialDirection?:number; dualArea?:number }
+export interface Hinge { ids: [number, number, number, number]; rest: number; crease: boolean; weight: number; lambda: number; layerStiffness?:number; materialDirection?:number; plasticOffset?:number; plasticAccumulated?:number; edgeLength?:number }
 export interface PaperMesh {
   rest: V3[]; faces: Face[]; edges: Edge[]; hinges: Hinge[]; masses: number[];
+  materialUV?:[number,number][]; faceOwners?:number[];
   aeroWeights?:number[];layerCounts?:number[];layerTies?:import('../folding/flight-mesh').LayerTie[];sourceDesign?:string;
   regions: number[]; nose: number; tail: number; leftRoot: number; rightRoot: number;
 }

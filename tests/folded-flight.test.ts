@@ -37,7 +37,7 @@ test('folded material options retain area scaling and complete an extreme launch
 });
 
 test('greater layer bending coupling reduces flex under the same launch',()=>{
- const state=build(recipes[1]),settings={speed:7,pitch:15,elevation:8};
+ const state=build(recipes[1]),settings={speed:7,pitch:15,elevation:8,layerModel:'bonded' as const};
  const loose=new Simulation(settings,compileFlightMesh(state,{layerCoupling:0})),bonded=new Simulation(settings,compileFlightMesh(state,{layerCoupling:1}));
  loose.launch();bonded.launch();for(let i=0;i<48;i++){loose.step();bonded.step();}
  assert.deepEqual(loose.mesh.masses,bonded.mesh.masses);assert.ok(bonded.deformation().rms<loose.deformation().rms*.9);assert.ok(bonded.metrics().bend<loose.metrics().bend);

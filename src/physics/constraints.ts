@@ -34,7 +34,7 @@ export function solveHinge(p: V3[],w: number[],h: Hinge,compliance: number,dt: n
   if(el<1e-10 || sq1<1e-18 || sq2<1e-18)return;
   const sin=((n1y*n2z-n1z*n2y)*ex+(n1z*n2x-n1x*n2z)*ey+(n1x*n2y-n1y*n2x)*ez)/el;
   const cos=n1x*n2x+n1y*n2y+n1z*n2z;
-  const C=wrapAngle(Math.atan2(sin,cos)-h.rest);
+  const C=wrapAngle(Math.atan2(sin,cos)-h.rest-(h.plasticOffset??0));
   n1x/=sq1;n1y/=sq1;n1z/=sq1;n2x/=sq2;n2y/=sq2;n2z/=sq2;
   const g0x=-el*n1x,g0y=-el*n1y,g0z=-el*n1z,g1x=-el*n2x,g1y=-el*n2y,g1z=-el*n2z;
   const k2=(vx*ex+vy*ey+vz*ez)/el,l2=(rx*ex+ry*ey+rz*ez)/el;
@@ -64,4 +64,15 @@ export function dampEdges(p: V3[],v: V3[],w:number[],edges:Edge[],amount:number)
 export function solveLayerTie(p:V3[],w:number[],tie:import('../folding/flight-mesh').LayerTie){
  const {vertex,face,weights}=tie,den=w[vertex]+face.reduce((sum,i,j)=>sum+w[i]*weights[j]**2,0);
  for(let d=0;d<3;d++){const error=p[vertex][d]-face.reduce((sum,i,j)=>sum+p[i][d]*weights[j],0),delta=-error/den;p[vertex][d]+=w[vertex]*delta;face.forEach((i,j)=>p[i][d]-=w[i]*weights[j]*delta);}
+}
+
+/** Near-inextensible safety envelope for a game without tearing. This inequality
+ * is inactive in the elastic range; it prevents under-resolved stiff modes from
+ * turning a thin sheet into a rubber net. It is not an extra elastic modulus. */
+export function limitEdgeStrain(p:V3[],w:number[],e:Edge,limit=.02){
+ const a=p[e.a],b=p[e.b],dx=a[0]-b[0],dy=a[1]-b[1],dz=a[2]-b[2],l=Math.hypot(dx,dy,dz);if(l<1e-12)return;
+ const target=Math.max(e.rest*(1-limit),Math.min(e.rest*(1+limit),l));
+ const impulse=(target-l)/(l*(w[e.a]+w[e.b]));
+ const wa=w[e.a]*impulse,wb=w[e.b]*impulse;
+ a[0]+=wa*dx;a[1]+=wa*dy;a[2]+=wa*dz;b[0]-=wb*dx;b[1]-=wb*dy;b[2]-=wb*dz;
 }
