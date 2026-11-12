@@ -6,7 +6,7 @@ import {designFold,collectionFold,foldFilename} from '../src/folding/downloads';
 import {designMesh} from '../src/folding/design';
 import {build,exportFold,materialArea} from '../src/folding/model';
 import {DEFAULTS} from '../src/physics/simulation';
-import {readDesignSettings,designQuery} from '../src/folding/settings';
+import {readDesignSettings} from '../src/folding/settings';
 
 test('library contains nine distinct sheet recipes and one explicitly effective design',()=>{
  assert.equal(sheetDesigns.length,9);assert.equal(designs.length,10);
@@ -52,9 +52,9 @@ test('collection is 18 independent valid frame dictionaries; partial exports mat
   assert.deepEqual(exportFold(build(partial['paperflight:recipe'],2)).file_frames[0].vertices_coords,partial.file_frames[0].vertices_coords);
  }
 });
-test('game and study settings survive navigation, reject invalid numbers, and retain special materials',()=>{
+test('game URLs restore workbench settings, reject invalid numbers, and retain special materials',()=>{
  const p={...DEFAULTS,size:.85,span:1.35,dihedral:16,paperWeight:110,stiffness:(110/80)**3};
- assert.deepEqual(readDesignSettings(new URLSearchParams(designQuery('raven',p))),p);
+ assert.deepEqual(readDesignSettings(new URLSearchParams('design=raven&size=0.85&span=1.35&dihedral=16&paperWeight=110&material=paper')),p);
  const foil=readDesignSettings(new URLSearchParams('material=foil&paperWeight=80&size=1.15&dihedral=0'));
  assert.equal(foil.material,'foil');assert.equal(foil.paperWeight,135);assert.equal(foil.size,1.15);assert.equal(foil.dihedral,0);
  const invalid=readDesignSettings(new URLSearchParams('size=NaN&span=100&dihedral=-1&material=bogus&paperWeight=Infinity'));

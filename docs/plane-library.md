@@ -2,7 +2,7 @@
 
 The picker contains **10 playable designs: nine complete sheet recipes and the legacy effective dart**. Six sheet studies were added: Heavy Nose, Hunting, The Buzz, V-Wing, Underside and Raven. They introduce different fold sequences and material distributions, rather than presets for the same mesh. Their names identify reference ideas, not exact digital replicas or verified flight performance.
 
-Choose a plane, adjust its workbench settings, then open **Library & downloads ↓** on the main screen. **Download this plane .fold** finishes that recipe with the current settings, without changing the workbench's fold progress. **Inspect folds & source** opens the study with the same settings. The study exports its displayed step; **Fly this design** completes it and carries the settings back to the game. Downloads work without a server API.
+Choose a plane, adjust its workbench settings, then open **Library & downloads ↓** on the main screen. **Download this plane .fold** finishes that recipe with the current settings, without changing the workbench's fold progress. **Folding reference** opens the original instructions for that design. Use **Next fold** and **Back** in the workbench to inspect the folds. Downloads work without a server API.
 
 **Download all sheet designs .fold** creates one FOLD 1.2 `multiModel` document, containing nine independent original-sheet/folded-state frame pairs. Some external viewers support only one model/frame; use individual downloads there. This app does not implement generic FOLD import.
 
@@ -34,7 +34,7 @@ Every recipe is a complete material disk. Default Letter area is 603.2246 cm² a
 
 Each individual FOLD has original 2D material coordinates at the root and a self-contained 3D folded frame. Indices identify material points, so coincident layers remain distinct. Boundary edges are `B`; internal partitions remain `U`. Complete mountain/valley angles and layer order are intentionally unspecified. The namespaced recipe extension can reconstruct the same geometry and applied step count in this implementation. Export tests compare those reconstructed vertices and the compiled flight mesh, rather than claiming support in every external FOLD viewer.
 
-The common registry is `src/folding/library.ts`, backed by `recipes.ts`. The main picker, study, downloads, query validation and launch use its IDs. `design.ts` applies wing/material choices; `downloads.ts` also applies sheet-size scaling. Relative navigation and browser Blob downloads do not assume a root deployment path.
+The common registry is `src/folding/library.ts`, backed by `recipes.ts`. The main picker, downloads, query validation and launch use its IDs. `design.ts` applies wing/material choices; `downloads.ts` also applies sheet-size scaling. Relative navigation and browser Blob downloads do not assume a root deployment path.
 
 Material area, seams, rigid panels and finite numerical flight are tested. No physical throws have calibrated these studies. Folding remains zero-thickness kinematics; the flight solver’s swept self-contact and initial-layer contact do not prove collision-free folding, full stacking order or a working frictional lock. New designs retain their authored span; all expose wing angle, sheet size and material selection.
 

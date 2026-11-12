@@ -1,5 +1,7 @@
 # Plane library validation
 
+Historical results from the library implementation. These checks predate removal of the separate folding-study page; current folding and downloads are in the main workbench.
+
 ## Result
 
 Added six independently authored sheet studies: **Heavy Nose, Hunting, The Buzz, V-Wing, Underside and Raven**. The shared library now exposes **10 playable entries: nine full-sheet recipes and Original dart**. Original dart remains an effective mesh and is explicitly unavailable as a full-sheet FOLD export.
