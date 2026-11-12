@@ -1,0 +1,105 @@
+{
+  "settings": {
+    "speed": 7.15,
+    "pitch": 15,
+    "elevation": 11.8,
+    "height": 1.8,
+    "earlyWindowS": 0.35,
+    "wind": [
+      0,
+      0,
+      0
+    ]
+  },
+  "note": "Nominal speed/impulse matched; time and distance include the spring stroke. Illustrative simulation, not measured throws.",
+  "results": [
+    {
+      "design": "legacy",
+      "material": "paper",
+      "launchDuration": 0,
+      "firstStepAirForceN": 0.07133614427126564,
+      "earlyDeformationMm": 17.0693090199868,
+      "peakDeformationMm": 17.0693090199868,
+      "distanceM": 4.701146392935291,
+      "timeS": 2.110416666666659,
+      "status": "landed"
+    },
+    {
+      "design": "legacy",
+      "material": "paper",
+      "launchDuration": 0.125,
+      "firstStepAirForceN": 0.0019518013881428232,
+      "earlyDeformationMm": 19.514680530744137,
+      "peakDeformationMm": 19.514680530744137,
+      "distanceM": 2.8534003502931213,
+      "timeS": 1.9972222222222156,
+      "status": "landed"
+    },
+    {
+      "design": "legacy",
+      "material": "tissue",
+      "launchDuration": 0,
+      "firstStepAirForceN": 0.04712541705373864,
+      "earlyDeformationMm": 9.312816245244163,
+      "peakDeformationMm": 11.317216025421995,
+      "distanceM": 5.578056884361035,
+      "timeS": 4.987962962962532,
+      "status": "landed"
+    },
+    {
+      "design": "legacy",
+      "material": "tissue",
+      "launchDuration": 0.125,
+      "firstStepAirForceN": 0.002067683012782717,
+      "earlyDeformationMm": 10.916891131249164,
+      "peakDeformationMm": 11.31261537879699,
+      "distanceM": 5.5908173687172,
+      "timeS": 5.072222222221778,
+      "status": "landed"
+    },
+    {
+      "design": "dart",
+      "material": "paper",
+      "launchDuration": 0,
+      "firstStepAirForceN": 0.08924245342488246,
+      "earlyDeformationMm": 4.773360420555944,
+      "peakDeformationMm": 4.773360420555944,
+      "distanceM": 5.152134028440666,
+      "timeS": 1.072222222222219,
+      "status": "landed"
+    },
+    {
+      "design": "dart",
+      "material": "paper",
+      "launchDuration": 0.125,
+      "firstStepAirForceN": 0.00032996942110194747,
+      "earlyDeformationMm": 1.5627976477912413,
+      "peakDeformationMm": 1.6224827711784513,
+      "distanceM": 5.2631636361502325,
+      "timeS": 1.1166666666666631,
+      "status": "landed"
+    },
+    {
+      "design": "dart",
+      "material": "tissue",
+      "launchDuration": 0,
+      "firstStepAirForceN": 0.04777634220081172,
+      "earlyDeformationMm": 3.9001904139422,
+      "peakDeformationMm": 3.9001904139422,
+      "distanceM": 4.095511433277381,
+      "timeS": 1.716666666666702,
+      "status": "landed"
+    },
+    {
+      "design": "dart",
+      "material": "tissue",
+      "launchDuration": 0.125,
+      "firstStepAirForceN": 0.000370735408149895,
+      "earlyDeformationMm": 1.3672931884570991,
+      "peakDeformationMm": 1.4337386574424094,
+      "distanceM": 4.018927770978033,
+      "timeS": 1.6916666666667008,
+      "status": "landed"
+    }
+  ]
+}

@@ -32,7 +32,7 @@ for(const name of cases.filter(c=>selected==='all'||c===selected)){
  const [design,material]=name.split('-');
  const entries=implementations.map(implementation=>{
   const {DEFAULTS,materialSettings,designMesh}=implementation;
-  const parameters:Parameters={...DEFAULTS,...materialSettings(material),...((material==='tissue'||option('--load','default')==='high')?{speed:11,wind:[0,0,3],gusts:1.5,turbulence:1}:{})};
+  const parameters:Parameters={...DEFAULTS,...materialSettings(material),...(process.argv.includes('--launch-duration')?{launchDuration:Number(option('--launch-duration','0'))}:{}),...((material==='tissue'||option('--load','default')==='high')?{speed:11,wind:[0,0,3],gusts:1.5,turbulence:1}:{})};
   return {implementation,parameters,mesh:design==='legacy'?undefined:designMesh(design,parameters),
    timings:[] as number[],totals:[] as number[],substeps:[] as number[],metricsMs:[] as number[],deformationMs:[] as number[],recordingMs:[] as number[],snapshots:[] as any[],metadata:undefined as any};
  });

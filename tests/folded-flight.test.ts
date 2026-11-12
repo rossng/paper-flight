@@ -28,7 +28,7 @@ test('flex vectors exclude rigid translation and rotation, and measure a local b
  const s=new Simulation({pitch:23,heading:43});assert.ok(s.deformation().rms<1e-12);const vertex=s.mesh.rest.findIndex((_,i)=>![s.mesh.nose,s.mesh.tail,s.mesh.leftRoot,s.mesh.rightRoot].includes(i));s.positions[vertex][1]+=.002;const field=s.deformation();assert.ok(Math.abs(field.vectors[vertex][1]-.002)<1e-12);assert.ok(field.perVertex.filter((_,i)=>i!==vertex).every(d=>d<1e-12));
 });
 for(const id of ['basic','dart','stable'])test(`${id}: compiled sheet completes flight and conserves free translation`,()=>{
- const p={...DEFAULTS,speed:7,pitch:15,elevation:8},mesh=designMesh(id,p),free=new Simulation({...p,gravity:0,aero:false,height:100},mesh);free.launch();for(let i=0;i<30;i++)free.step();assert.ok(Math.abs(free.metrics().distance-7*.25*Math.cos(8*Math.PI/180))<1e-7);assert.ok(free.deformation().rms<1e-7);
+ const p={...DEFAULTS,speed:7,pitch:15,elevation:8},mesh=designMesh(id,p),free=new Simulation({...p,gravity:0,aero:false,height:100,launchDuration:0},mesh);free.launch();for(let i=0;i<30;i++)free.step();assert.ok(Math.abs(free.metrics().distance-7*.25*Math.cos(8*Math.PI/180))<1e-7);assert.ok(free.deformation().rms<1e-7);
  const s=new Simulation(p,mesh);s.launch();while(s.status==='flying')s.step();assert.equal(s.status,'landed');assert.ok(s.metrics().distance>1);assert.ok(s.metrics().maxStrain<.1);assert.ok(s.peakDeformation>1e-6);
 });
 test('folded material options retain area scaling and complete an extreme launch',()=>{
