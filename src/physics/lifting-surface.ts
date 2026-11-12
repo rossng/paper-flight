@@ -66,25 +66,39 @@ export function solveLiftingLine(boundaries:number[],chords:number[],speeds:numb
 function exposureQuery(p:V3[],faces:Face[],surface:LiftingSurface) {
   const cell=Math.max(.015,surface.span/6),gap=surface.shieldingDistance,grid=new Map<string,number[]>();
   const key=(x:number,y:number,z:number)=>`${x},${y},${z}`;
-  const normals=faces.map(([a,b,c])=>unit(cross(sub(p[b],p[a]),sub(p[c],p[a]))));
+  // Deformed face geometry is invariant across this evaluation's patch queries,
+  // not across substeps: peeling/sliding and replay always rebuild this cache.
+  const geometry=faces.map(([ia,ib,ic])=>{
+    const a=p[ia],b=p[ib],c=p[ic],ab=sub(b,a),ac=sub(c,a);
+    const aa=dot(ab,ab),bb=dot(ac,ac),cc=dot(ab,ac);
+    return {a,ab,ac,normal:unit(cross(ab,ac)),aa,bb,cc,den:aa*bb-cc*cc};
+  });
   const overflow:number[]=[];
-  faces.forEach((face,fi)=>{
-    const low=[0,1,2].map(d=>Math.floor((Math.min(...face.map(i=>p[i][d]))-gap)/cell));
-    const high=[0,1,2].map(d=>Math.floor((Math.max(...face.map(i=>p[i][d]))+gap)/cell));
-    if(high.reduce((n,v,d)=>n*(v-low[d]+1),1)>512){overflow.push(fi);return;}
-    for(let x=low[0];x<=high[0];x++)for(let y=low[1];y<=high[1];y++)for(let z=low[2];z<=high[2];z++){
+  faces.forEach(([ia,ib,ic],fi)=>{
+    const a=p[ia],b=p[ib],c=p[ic];
+    const lx=Math.floor((Math.min(a[0],b[0],c[0])-gap)/cell),hx=Math.floor((Math.max(a[0],b[0],c[0])+gap)/cell);
+    const ly=Math.floor((Math.min(a[1],b[1],c[1])-gap)/cell),hy=Math.floor((Math.max(a[1],b[1],c[1])+gap)/cell);
+    const lz=Math.floor((Math.min(a[2],b[2],c[2])-gap)/cell),hz=Math.floor((Math.max(a[2],b[2],c[2])+gap)/cell);
+    if((hx-lx+1)*(hy-ly+1)*(hz-lz+1)>512){overflow.push(fi);return;}
+    for(let x=lx;x<=hx;x++)for(let y=ly;y<=hy;y++)for(let z=lz;z<=hz;z++){
       const k=key(x,y,z),bucket=grid.get(k);if(bucket)bucket.push(fi);else grid.set(k,[fi]);
     }
   });
+  const owners=new Set<number>();
   return (point:V3,fi:number)=>{
-    const owners=new Set<number>(),owner=surface.owners?.[fi]??fi;owners.add(owner);
-    for(const j of [...(grid.get(key(...point.map(v=>Math.floor(v/cell)) as V3))??[]),...overflow]){
-      const other=surface.owners?.[j]??j;if(owners.has(other)||Math.abs(dot(normals[fi],normals[j]))<.98)continue;
-      const [a,b,c]=faces[j].map(i=>p[i]),ab=sub(b,a),ac=sub(c,a),ap=sub(point,a);
-      if(Math.abs(dot(ap,normals[j]))>gap)continue;
-      const aa=dot(ab,ab),bb=dot(ac,ac),cc=dot(ab,ac),den=aa*bb-cc*cc;if(den<1e-20)continue;
-      const u=(dot(ap,ab)*bb-dot(ap,ac)*cc)/den,v=(dot(ap,ac)*aa-dot(ap,ab)*cc)/den;
-      if(u>=-1e-8&&v>=-1e-8&&u+v<=1+1e-8)owners.add(other);
+    owners.clear();owners.add(surface.owners?.[fi]??fi);
+    const bucket=grid.get(key(Math.floor(point[0]/cell),Math.floor(point[1]/cell),Math.floor(point[2]/cell)));
+    for(let pass=0;pass<2;pass++){
+      const candidates=pass===0?bucket:overflow;if(!candidates)continue;
+      for(const j of candidates){
+        const other=surface.owners?.[j]??j,g=geometry[j];
+        if(owners.has(other)||Math.abs(dot(geometry[fi].normal,g.normal))<.98)continue;
+        const px=point[0]-g.a[0],py=point[1]-g.a[1],pz=point[2]-g.a[2];
+        if(Math.abs(px*g.normal[0]+py*g.normal[1]+pz*g.normal[2])>gap||g.den<1e-20)continue;
+        const dab=px*g.ab[0]+py*g.ab[1]+pz*g.ab[2],dac=px*g.ac[0]+py*g.ac[1]+pz*g.ac[2];
+        const u=(dab*g.bb-dac*g.cc)/g.den,v=(dac*g.aa-dab*g.cc)/g.den;
+        if(u>=-1e-8&&v>=-1e-8&&u+v<=1+1e-8)owners.add(other);
+      }
     }
     return 1/owners.size;
   };

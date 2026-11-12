@@ -72,6 +72,9 @@ export function solveLayerTie(p:V3[],w:number[],tie:import('../folding/flight-me
 export function limitEdgeStrain(p:V3[],w:number[],e:Edge,limit=.02){
  const a=p[e.a],b=p[e.b],dx=a[0]-b[0],dy=a[1]-b[1],dz=a[2]-b[2],l=Math.hypot(dx,dy,dz);if(l<1e-12)return;
  const target=Math.max(e.rest*(1-limit),Math.min(e.rest*(1+limit),l));
+ // An inactive inequality has exactly zero impulse; avoid six position writes
+ // in the overwhelmingly common elastic range without weakening the envelope.
+ if(target===l)return;
  const impulse=(target-l)/(l*(w[e.a]+w[e.b]));
  const wa=w[e.a]*impulse,wb=w[e.b]*impulse;
  a[0]+=wa*dx;a[1]+=wa*dy;a[2]+=wa*dz;b[0]-=wb*dx;b[1]-=wb*dy;b[2]-=wb*dz;

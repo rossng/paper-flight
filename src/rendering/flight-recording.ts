@@ -6,7 +6,11 @@ export class FlightRecording {
  frames:FlightFrame[]=[];
  capture(simulation:Simulation){
   if(this.frames.at(-1)?.time===simulation.time)return;
-  this.frames.push({time:simulation.time,positions:new Float32Array(simulation.positions.flat()),velocities:new Float32Array(simulation.velocities.flat()),center:[...simulation.center()]});
+  const positions=new Float32Array(simulation.positions.length*3),velocities=new Float32Array(positions.length);
+  for(let i=0;i<simulation.positions.length;i++)for(let d=0;d<3;d++){
+   positions[3*i+d]=simulation.positions[i][d];velocities[3*i+d]=simulation.velocities[i][d];
+  }
+  this.frames.push({time:simulation.time,positions,velocities,center:[...simulation.center()]});
  }
  get duration(){return this.frames.at(-1)?.time??0;}
  sample(time:number):FlightFrame|undefined {
