@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {elasticPull,pullTravel,springSpeed,springRemaining,springReleaseDuration,SPRING_STIFFNESS} from '../src/physics/launcher';
+import {elasticPull,pullTravel,launchSpeed,springRemaining} from '../src/physics/launcher';
 
 test('equal extra hand travel produces progressively less spring extension',()=>{
  const steps=[0,30,60,90,120,150].map(y=>elasticPull(0,y).y);
@@ -15,11 +15,9 @@ test('elastic drag preserves direction, stays bounded, and can be re-grabbed con
  const pull=elasticPull(-100,100);assert.ok(Math.abs(pull.x/pull.y+1)<1e-10);assert.ok(Math.hypot(pull.x,pull.y)<=100);
  assert.deepEqual(elasticPull(0,-50),{x:0,y:0});
 });
-test('release speed uses stored spring energy and release motion accelerates to launch',()=>{
- const mass=.005,pull=60,speed=springSpeed(pull,mass),extension=pull/100*.7;
- assert.ok(Math.abs(.5*mass*speed**2-.5*SPRING_STIFFNESS*extension**2)<1e-12);
- assert.ok(springSpeed(pull,mass*2)<speed);assert.ok(springSpeed(100,.001)<=9);
+test('pull controls a bounded speed range and the cosmetic release accelerates',()=>{
+ assert.equal(launchSpeed(-10),0);assert.equal(launchSpeed(0),0);
+ assert.equal(launchSpeed(50),5.5);assert.equal(launchSpeed(100),11);assert.equal(launchSpeed(200),11);
  assert.equal(springRemaining(0),1);assert.ok(springRemaining(1)<1e-12);
  assert.ok(1-springRemaining(.2)<springRemaining(.8)-springRemaining(1));
- assert.ok(Math.abs(extension*Math.PI/(2*springReleaseDuration(mass)/1000)-speed)<1e-12);
 });

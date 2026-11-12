@@ -52,7 +52,7 @@ export class FoldingView {
    const points=panel.points.map(p=>this.point(p.position)),positions:number[]=[];
    for(let j=1;j<points.length-1;j++)positions.push(...points[0].toArray(),...points[j].toArray(),...points[j+1].toArray());
    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeVertexNormals();
-   const material=new THREE.MeshStandardMaterial({color:materialId==='paper'?(gsm===110?0xe5d3ae:gsm===60?0xfffef6:i%2?0xf5ead4:0xfff7e6):surface.color,side:THREE.DoubleSide,roughness:surface.roughness,metalness:surface.metalness,flatShading:true,polygonOffset:true,polygonOffsetFactor:1+i*.15,polygonOffsetUnits:1+i*.15});
+   const material=new THREE.MeshStandardMaterial({color:materialId==='paper'?(gsm===110?0xe5d3ae:gsm===60?0xfffef6:i%2?0xf5ead4:0xfff7e6):surface.color,side:THREE.DoubleSide,roughness:surface.roughness,metalness:surface.metalness,opacity:surface.opacity,transparent:surface.opacity<1,depthWrite:surface.opacity===1,forceSinglePass:true,flatShading:true,polygonOffset:true,polygonOffsetFactor:1+i*.15,polygonOffsetUnits:1+i*.15});
    this.paper.add(new THREE.Mesh(geometry,material));
    this.paper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...points,points[0]]),new THREE.LineBasicMaterial({color:0x62796d,transparent:true,opacity:.55})));
   });

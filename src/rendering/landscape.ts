@@ -3,8 +3,12 @@ import * as THREE from 'three';
 export function landscape(){
  const group=new THREE.Group();
  const mesh=(geometry:THREE.BufferGeometry,color:number,x:number,y:number,z:number)=>{const m=new THREE.Mesh(geometry,new THREE.MeshStandardMaterial({color,flatShading:true,roughness:1}));m.position.set(x,y,z);group.add(m);return m;};
- mesh(new THREE.PlaneGeometry(180,180),0x86b572,30,-0.02,0).rotation.x=-Math.PI/2;
- mesh(new THREE.PlaneGeometry(90,5),0xd9bf8b,35,-0.012,0).rotation.x=-Math.PI/2;
+ // The grass has a runway-shaped opening: coplanar neighbours cannot
+ // z-fight, even from distant or shallow replay camera angles.
+ const ground=new THREE.Shape();ground.moveTo(-60,-90);ground.lineTo(120,-90);ground.lineTo(120,90);ground.lineTo(-60,90);ground.closePath();
+ const opening=new THREE.Path();opening.moveTo(-10,-2.5);opening.lineTo(-10,2.5);opening.lineTo(80,2.5);opening.lineTo(80,-2.5);opening.closePath();ground.holes.push(opening);
+ const grass=mesh(new THREE.ShapeGeometry(ground),0x86b572,0,-.02,0);grass.rotation.x=-Math.PI/2;grass.receiveShadow=true;
+ const runway=mesh(new THREE.PlaneGeometry(90,5),0xd9bf8b,35,-.02,0);runway.rotation.x=-Math.PI/2;runway.receiveShadow=true;
  for(let i=0;i<56;i++){
   const x=(i*7.31)%100-8,z=(i%2?1:-1)*(4+(i*3.17)%25),h=1.4+(i*0.71)%2.3;
   mesh(new THREE.CylinderGeometry(0.08,0.13,h*0.5,5),0x8b7352,x,h*0.25,z);

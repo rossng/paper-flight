@@ -7,24 +7,30 @@ import { length, type V3 } from '../physics/math';
 import { materials } from '../physics/materials';
 import { airVelocity } from '../physics/weather';
 import { aerodynamicLoads, centerOfLift } from '../physics/aerodynamics';
-export interface ViewOptions { heat:boolean; wire:boolean; forces:boolean; velocity:boolean; follow:boolean; flex:boolean; flexScale:number; layers:boolean; massCenter:boolean; liftCenter:boolean }
+import { liftSummary, type LiftSummary } from '../physics/flight-loads';
+export interface ViewOptions { heat:boolean; wire:boolean; forces:boolean; velocity:boolean; follow:boolean; flex:boolean; flexScale:number; layers:boolean; massCenter:boolean; liftCenter:boolean; liftMeter:boolean }
 class PlaneView {
  environment=landscape(); scene=new THREE.Scene(); geometry=new THREE.BufferGeometry(); paper:THREE.Mesh;
  wire:THREE.LineSegments; folds:THREE.LineSegments; path:THREE.Line;
  flexArrows:THREE.ArrowHelper[]=[];referenceWire:THREE.LineSegments;flexRms=0;
  arrows:THREE.ArrowHelper[]=[]; velocity=new THREE.ArrowHelper();
  massMarker=this.makeCenterMarker('MASS','#2879bd',1);liftMarker=this.makeCenterMarker('LIFT','#a640a5',-1);
- liftCenter?:V3;private analyzedFrame?:FlightFrame;
+ liftCenter?:V3;liftReading?:LiftSummary;private analyzedFrame?:FlightFrame;
+ private sun=new THREE.DirectionalLight(0xffffff,3.2);
  constructor(public simulation:Simulation,public accent:number){
   this.scene.background=new THREE.Color('#c5dfdb');this.scene.fog=new THREE.Fog('#c5dfdb',35,110);this.scene.add(this.environment);
   this.scene.add(new THREE.HemisphereLight(0xffffff,0x7d8d80,2.7));
-  const key=new THREE.DirectionalLight(0xffffff,3.2);key.position.set(2,5,3);this.scene.add(key);
+  const key=this.sun;key.castShadow=true;key.shadow.mapSize.set(1024,1024);
+  // Keep a small shadow camera around the aircraft for a crisp contact cue,
+  // even when the flight travels far from the launch point.
+  Object.assign(key.shadow.camera,{left:-.8,right:.8,top:.8,bottom:-.8,near:.1,far:160});key.shadow.camera.updateProjectionMatrix();
+  key.shadow.bias=-.00002;key.shadow.normalBias=.002;this.scene.add(key,key.target);
   const m=simulation.mesh,surface=materials[simulation.parameters.material];
   this.geometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(m.rest.length*3),3));
   this.geometry.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(m.rest.length*3),3));
   this.geometry.setIndex(m.faces.flat());
-  this.paper=new THREE.Mesh(this.geometry,new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,roughness:surface.roughness,metalness:surface.metalness,flatShading:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
-  this.scene.add(this.paper);
+  this.paper=new THREE.Mesh(this.geometry,new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide,roughness:surface.roughness,metalness:surface.metalness,opacity:surface.opacity,transparent:surface.opacity<1,depthWrite:surface.opacity===1,forceSinglePass:true,flatShading:true,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
+  this.paper.castShadow=true;this.scene.add(this.paper);
   this.referenceWire=this.makeLines(m.edges.length,0x6c8ace,0.35);this.referenceWire.visible=false;this.scene.add(this.referenceWire);
   for(let i=0;i<Math.min(64,m.rest.length);i++){const arrow=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(),.01,0xf27642,.004,.002);arrow.visible=false;this.flexArrows.push(arrow);this.scene.add(arrow);}
   this.wire=this.makeLines(m.edges.length,0x687c78,0.25);this.scene.add(this.wire);
@@ -47,11 +53,15 @@ class PlaneView {
  update(options:ViewOptions,frame?:FlightFrame){
   const s=this.simulation,p=this.geometry.getAttribute('position') as THREE.BufferAttribute,c=this.geometry.getAttribute('color') as THREE.BufferAttribute;
   const positions=frame?s.positions.map((_,i)=>[frame.positions[i*3],frame.positions[i*3+1],frame.positions[i*3+2]] as [number,number,number]):s.positions;
+  const center=frame?.center??s.center(),height=Math.max(0,center[1]);
+  this.sun.target.position.set(...center);this.sun.position.copy(this.sun.target.position).add(new THREE.Vector3(2,10,3));
+  this.sun.shadow.radius=Math.min(8,1+height*1.8);
+  this.sun.shadow.intensity=materials[s.parameters.material].opacity*.85/(1+height*.12);
   this.massMarker.visible=options.massCenter&&!!frame;this.massMarker.position.set(...(frame?.center??s.center()));
-  if(options.liftCenter&&frame&&this.analyzedFrame!==frame){
+  if((options.liftCenter||options.liftMeter)&&frame&&this.analyzedFrame!==frame){
    const velocities=positions.map((_,i)=>[frame.velocities[i*3],frame.velocities[i*3+1],frame.velocities[i*3+2]] as V3);
    const panels=aerodynamicLoads(positions,velocities,s.mesh.faces,s.aeroSettings(frame.time),positions.map(()=>[0,0,0] as V3));
-   this.liftCenter=centerOfLift(panels);this.analyzedFrame=frame;
+   this.liftCenter=centerOfLift(panels);this.liftReading=liftSummary(panels,s.mesh.masses.reduce((sum,mass)=>sum+mass,0),s.parameters.gravity);this.analyzedFrame=frame;
   }
   this.liftMarker.visible=options.liftCenter&&!!frame&&!!this.liftCenter;if(this.liftCenter)this.liftMarker.position.set(...this.liftCenter);
   const sock=this.environment.getObjectByName('windsock');if(sock){const wind=new THREE.Vector3(...airVelocity(s.parameters,frame?.time??s.time,[0,2.9,-3.3]));if(wind.length()<.05)wind.set(0,-1,0);wind.normalize();sock.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),wind);sock.position.set(0,2.9,-3.3).addScaledVector(wind,.4);}
@@ -69,16 +79,16 @@ class PlaneView {
   this.arrows.forEach((a,i)=>{const panel=s.panels[Math.floor(i*s.panels.length/16)];a.visible=options.forces&&!!panel&&length(panel.force)>1e-8;if(!a.visible||!panel)return;a.position.set(...panel.center);a.setDirection(new THREE.Vector3(...panel.force).normalize());a.setLength(Math.min(length(panel.force)*15,0.15),0.009,0.004);});
   const v=s.center(s.velocities);this.velocity.visible=options.velocity&&length(v)>1e-5;this.velocity.position.set(...s.center());if(this.velocity.visible){this.velocity.setDirection(new THREE.Vector3(...v).normalize());this.velocity.setLength(length(v)*0.025,0.018,0.008);}
  }
- dispose(){this.scene.traverse(o=>{const x=o as THREE.Mesh;if(x.geometry)x.geometry.dispose();if(x.material){const mats=Array.isArray(x.material)?x.material:[x.material];mats.forEach(m=>{const map=(m as THREE.MeshStandardMaterial).map;map?.dispose();m.dispose();});}});}
+ dispose(){this.sun.shadow.dispose();this.scene.traverse(o=>{const x=o as THREE.Mesh;if(x.geometry)x.geometry.dispose();if(x.material){const mats=Array.isArray(x.material)?x.material:[x.material];mats.forEach(m=>{const map=(m as THREE.MeshStandardMaterial).map;map?.dispose();m.dispose();});}});}
 }
 export class Viewport {
  renderer:THREE.WebGLRenderer;camera=new THREE.PerspectiveCamera(40,1,0.005,250);controls:OrbitControls;
- views:PlaneView[]=[];options:ViewOptions={heat:false,wire:false,forces:false,velocity:false,follow:true,flex:false,flexScale:10,layers:false,massCenter:false,liftCenter:false};
+ views:PlaneView[]=[];options:ViewOptions={heat:false,wire:false,forces:false,velocity:false,follow:true,flex:false,flexScale:10,layers:false,massCenter:false,liftCenter:false,liftMeter:false};
  mode:'workbench'|'throw'='workbench';
  reviewing=false;reviewFollow=false;reviewFrame?:FlightFrame;private reviewDecor?:THREE.Group;private reviewTrailMaterial?:THREE.ShaderMaterial;
  private actual=new THREE.PerspectiveCamera(40,1,0.005,250);private observer:ResizeObserver;
  constructor(public element:HTMLElement){
-  this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor('#e9eeeb');this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
+  this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFShadowMap;this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor('#e9eeeb');this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1;
   this.element.append(this.renderer.domElement);this.renderer.domElement.setAttribute('aria-label','Interactive 3D paper aeroplane. Drag to rotate and scroll to zoom.');
   this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.dampingFactor=0.12;this.controls.minDistance=0.24;this.controls.maxDistance=40;this.controls.enablePan=false;this.controls.maxPolarAngle=Math.PI*0.94;
   this.home();this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(element);this.resize();
@@ -106,7 +116,7 @@ export class Viewport {
   const label=(text:string,point:typeof trail[number],color:string)=>{const c=document.createElement('canvas');c.width=256;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.fillRect(0,0,256,96);ctx.fillStyle='#243b49';ctx.font='bold 35px sans-serif';ctx.textAlign='center';ctx.fillText(text,128,61);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));sprite.position.set(point[0],point[1]+0.45,point[2]);sprite.scale.set(1.1,0.41,1);decor.add(sprite);};
   label('TAKEOFF',trail[0],'#ffda55');label(view.simulation.status==='landed'?'LANDING':'END',trail.at(-1)!,'#ffad84');this.fitReview();
  }
- endReview(){this.reviewing=false;this.reviewFollow=false;this.options.flex=false;this.options.layers=false;this.options.massCenter=false;this.options.liftCenter=false;this.reviewFrame=undefined;this.reviewDecor=undefined;this.reviewTrailMaterial=undefined;this.controls.enablePan=false;this.controls.maxDistance=40;this.controls.maxPolarAngle=Math.PI*0.94;this.controls.enabled=this.mode==='workbench';this.home();}
+ endReview(){this.reviewing=false;this.reviewFollow=false;this.options.flex=false;this.options.layers=false;this.options.massCenter=false;this.options.liftCenter=false;this.options.liftMeter=false;this.reviewFrame=undefined;this.reviewDecor=undefined;this.reviewTrailMaterial=undefined;this.controls.enablePan=false;this.controls.maxDistance=40;this.controls.maxPolarAngle=Math.PI*0.94;this.controls.enabled=this.mode==='workbench';this.home();}
  fitReview(){
   if(!this.reviewing)return;this.reviewFollow=false;const bounds=new THREE.Box3().setFromPoints(this.views[0].simulation.trail.map(p=>new THREE.Vector3(...p))),target=bounds.getCenter(new THREE.Vector3()),radius=Math.max(0.8,bounds.getSize(new THREE.Vector3()).length()/2);
   const aspect=this.element.clientWidth/this.element.clientHeight,angle=Math.min(THREE.MathUtils.degToRad(20),Math.atan(Math.tan(THREE.MathUtils.degToRad(20))*aspect));
