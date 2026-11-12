@@ -1,16 +1,14 @@
-# Plane library task report
+# Plane library validation
 
 ## Result
 
 Added six independently authored sheet studies: **Heavy Nose, Hunting, The Buzz, V-Wing, Underside and Raven**. The shared library now exposes **10 playable entries: nine full-sheet recipes and Original dart**. Original dart remains an effective mesh and is explicitly unavailable as a full-sheet FOLD export.
 
-The main-screen **Library & downloads ↓** control downloads the selected completed sheet using current settings, or all nine sheets as an 18-frame multi-model `.fold`. Individual files contain original material coordinates, folded coordinates, topology, recipe history, settings, source attribution and the complete project MIT notice. The study uses the same IDs/settings and exports its currently displayed step. Navigation is relative; downloads use browser Blobs.
+The main-screen **Library & downloads ↓** control downloads the selected completed sheet using current settings, or all nine sheets as an 18-frame multi-model `.fold`. Individual files contain original material coordinates, folded coordinates, topology, recipe history, settings, source attribution and the complete project Blue Oak Model License 1.0.0. The study uses the same IDs/settings and exports its currently displayed step. Navigation is relative; downloads use browser Blobs.
 
 The [source/reuse table and limitations](plane-library.md) records the primary research. No external airplane `.fold` assets were imported. An actual Origami Simulator airplane SVG and MIT-licensed FOLD example files were verified, but they do not supply ready-to-fly plane recipes. Fold ’N Fly templates/photos are not redistributed. Cut and accordion-fold references are documented separately and excluded from the playable count. V-Wing starts from an entire square sheet; it does not pretend to preserve the rectangular offcut from the source tutorial.
 
 ## Investigation and implementation
-
-Read the original brief (now preserved as `docs/PLANE_LIBRARY_TASK_BRIEF.md`), `README.md`, `docs/custom-folding.md`, `docs/folded-flight.md`, the material folding model/exporter, compiler, study and picker. No applicable `AGENTS.md` was found. The initial implementation stayed in this checkout without agents, merge, push, deployment or publication. A later explicit request authorized rebasing onto `origin/main`, pushing the branch and opening a PR.
 
 - Centralized titles, capabilities and limitations in `src/folding/library.ts`, backed by recipes and their source URLs.
 - Added six distinct fold sequences, including layer-selected nose pleats, rolled bands, winglets and landscape-sheet construction. All retain full material area and existing solver principles.

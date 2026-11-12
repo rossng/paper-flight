@@ -33,8 +33,8 @@ SOFTWARE.
 - Three.js: MIT; its complete license is included at `licenses/three-LICENSE`.
 - Vite, TypeScript, tsx, and type definitions are development dependencies; their licenses ship with their npm packages. TypeScript is Apache-2.0; Vite and tsx are MIT.
 - Origami Simulator was investigated as a design reference for triangulated bar-and-hinge origami. No code from Origami Simulator is included.
-- XPBD equations are implemented from Macklin, Müller, and Chentanez (2016), linked in README.md.
+- XPBD equations are implemented from [Macklin, Müller, and Chentanez (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
 
 ## Plane-library references
 
-The nine procedural sheet recipes and their exported FOLD geometry are independently authored Paper Flight studies, covered by the project MIT license. Fold ’N Fly is cited as an instructional reference; its photographs, printable templates and text are not bundled. These are not downloaded Fold ’N Fly assets. See [the source and reuse table](docs/plane-library.md) for verified URLs, candidate assets and unsupported designs. The Origami Simulator SVG and FOLD example assets investigated for this task are not included.
+The nine procedural sheet recipes and their exported FOLD geometry are independently authored Paper Flight studies, covered by the project Blue Oak Model License 1.0.0. Fold ’N Fly is cited as an instructional reference; its photographs, printable templates and text are not bundled. These are not downloaded Fold ’N Fly assets. See [the source and reuse table](docs/plane-library.md) for verified URLs, candidate assets and unsupported designs. The Origami Simulator SVG and FOLD example assets investigated for this task are not included.

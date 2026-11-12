@@ -1,6 +1,6 @@
 # Paper self-contact findings
 
-2026-11-12 · base `26cc85f` · Node `v26.12.1` · worktree `self-collision`.
+2026-11-12 · base `26cc85f` · Node `v26.12.1`.
 
 Implemented a bounded swept-contact increment, **not a no-intersection guarantee**. It greatly reduces the reproduced Original-dart crossing and reduces peak transverse depth in the sampled compiled recipes. Initially coincident recipe stacks still intersect. These flights are numerical tests, not physically calibrated predictions.
 
@@ -33,11 +33,9 @@ Paired baseline/current measurements ([raw JSON](self-contact-benchmark-results.
 
 Every case remained finite and flying at 0.35 s. Peak edge strain in these changed runs ranged from 0.23% to 2.38%. The Original-paper depth fell by about 99.85%, but its residual two pairs still rule out a collision-free claim. Tissue-Original deformation was unchanged in this sample (9.991 mm final flex); contact does not globally freeze the sheet. Compiled intersections remain substantial, and pair counts often increase. These results verify reduced depth in these launches, not universal improvement under every load.
 
-The paired timings show roughly 1.1–2.7× cost, with particularly expensive tissue stacks; most configurations exceed an 8.33 ms outer-step budget. An allocation-heavy first implementation was profiled and replaced with scalar narrow-phase/projection arithmetic and translating-frame bounds. No Worker was introduced. Timing includes startup/JIT and shared-machine contention; use the paired command below for another local measurement.
+The paired timings show roughly 1.1–2.7× cost, with particularly expensive tissue stacks; most configurations exceed an 8.33 ms outer-step budget. An allocation-heavy first implementation was profiled and replaced with scalar narrow-phase/projection arithmetic and translating-frame bounds. These measurements predate the [worker and performance improvements](performance.md). Timing includes startup/JIT and shared-machine contention; use the paired command below for another local measurement.
 
 ## Validation and commands
-
-No applicable `AGENTS.md` was present. Read the brief, README, physics, folding and validation documentation. `npm ci --no-audit --no-fund` succeeded. The pre-change command `npm test -- --test-concurrency=2` passed all **83** tests in **68.20 s**. Computation remained within two local workers; no additional agents, worktrees, network publication or deployment were used.
 
 The six new high-load bounds were replayed against the original Simulation constructor: **all six failed**, reproducing 13.661 / 10.627 / 2.695 / 18.785 / 2.326 / 23.435 mm for Original-paper, Basic-paper, Dart-paper, Stable-paper, Dart-tissue and Stable-tissue respectively. The isolated tests cover a fast vertex ending outside the target footprint, an edge-only crossing, multiple coplanarity roots, unequal-mass impulse/torque balance, rigid/winding invariance, neighbor exclusions, initial coincidence, separation/recontact, broad-phase culling and deterministic reset.
 
@@ -78,6 +76,6 @@ The last command intentionally exits 1 on the old solver. The paired benchmark a
 - Detection assumes linear vertex paths between snapshots. It does not certify intermediate nonlinear projection paths, collision response created after the final detection, repeated impacts, or arbitrarily fast rotations. Even detected double crossings can escape endpoint response. A fail-safe impact-zone/step-subdivision method is not implemented.
 - Degenerate triangles, almost parallel/collinear edges, coplanar sliding overlap and one-ring exclusions leave uncovered cases. Contact is zero clearance; paper thickness affects mechanics, not collision spacing. There is no finite-thickness stacking or guaranteed locking flap.
 - Normal correction can leave residual strain after the final limiter pass. Finite projection sweeps leave residual intersections. More sweeps alone do not resolve ambiguous initial ordering.
-- Swept checks cost additional CPU, especially on layered Dart/Stable meshes. The fixed clock can therefore slow playback further; profiling/worker work and a better ordered-stack representation remain necessary before claiming interactive performance across devices.
+- Swept checks cost additional CPU, especially on layered Dart/Stable meshes. The fixed clock can therefore slow playback further; a better ordered-stack representation and further solver optimisation remain necessary. See the [later performance measurements](performance.md) for worker results.
 
 To try it, run `npm run dev -- --port 5187 --strictPort` on an unused port, keep the default contact model, and launch the Original dart or a compiled recipe at full power with blustery weather, gusts and turbulence. Tissue and ordinary launches retain the existing controls. Use replay/flex inspection to view the result, and use `npm run benchmark:contact` for measured intersections rather than inferring safety from the image.

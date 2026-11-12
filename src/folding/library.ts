@@ -22,4 +22,4 @@ export const designs:PlaneDesign[]=[
 ];
 export const sheetDesigns=designs.filter(d=>d.kind==='sheet');
 export function findDesign(id:string){return designs.find(d=>d.id===id);}
-export const reuseBasis='Independently authored Paper Flight coordinates and instructions, MIT. Reference links are attribution only; no third-party templates, photographs or downloaded geometry are included.';
+export const reuseBasis='Independently authored Paper Flight coordinates and instructions, Blue Oak Model License 1.0.0. Reference links are attribution only; no third-party templates, photographs or downloaded geometry are included.';

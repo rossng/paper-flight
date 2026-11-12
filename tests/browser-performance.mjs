@@ -1,5 +1,5 @@
 // Dependency-free Chrome DevTools runner. Start isolated Chrome and Vite first;
-// see docs/TASK_REPORT.md. No application debug hooks or production telemetry.
+// see docs/performance.md. No application debug hooks or production telemetry.
 import { writeFileSync } from 'node:fs';
 const option=(name,fallback)=>process.argv.includes(name)?process.argv[process.argv.indexOf(name)+1]:fallback;
 const port=option('--cdp','9297'),url=option('--url','http://127.0.0.1:5197/');
