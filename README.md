@@ -20,9 +20,13 @@ Open the URL printed by Vite, normally `http://localhost:5173`. The server only 
 npm test          # numerical and behavioural regression checks
 npm run benchmark # repeat the soft / standard / stiff flight measurements
 npm run benchmark:physics # aerodynamic and flexible-solver convergence evidence
+npm run benchmark:performance # warmed, repeated serial solver timings
 npm run build     # type-check and produce dist/
 npm run preview   # serve the production build
 ```
+
+See [the performance report](docs/TASK_REPORT.md) for paired baseline comparisons,
+browser frame measurements, and the substep scheduling tradeoffs.
 
 The download also includes a prebuilt `dist/`. To use it without installing Node dependencies, serve it with any static HTTP server, for example:
 

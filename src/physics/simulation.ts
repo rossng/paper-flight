@@ -1,4 +1,4 @@
-import { buildMembranes, solveMembrane, type Membrane } from './membrane';
+import { buildMembranes, solveMembrane, membraneAlphas, type Membrane } from './membrane';
 import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
 import { buildContactCandidates, detectLayerContacts, solveLayerContact, type ContactCandidate } from './layer-contact';
 import { SelfContactSolver } from './self-contact';
@@ -11,6 +11,8 @@ import { dampEdges, limitEdgeStrain, solveHinge, solveLayerTie } from './constra
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
 export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
+/** Leave room for rendering/input; an indivisible substep can exceed this budget. */
+export const FRAME_PHYSICS_BUDGET_MS=12;
 export interface Parameters { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
 export const DEFAULTS: Parameters={aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'landed'|'finished'|'error';
@@ -22,6 +24,8 @@ export class Simulation {
   mesh:PaperMesh; positions:V3[]=[]; velocities:V3[]=[]; forces:V3[]=[]; invMass:number[];
   panels:PanelLoad[]=[]; parameters:Parameters; status:Status='ready'; time=0; pathLength=0;
   start:V3=[0,0,0]; trail:V3[]=[]; peakDeformation=0; lastCenter:V3=[0,0,0];
+  private pendingStep?:Generator<void,void,void>;
+  private oldPositions:V3[]=[];
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
     this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
     this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);
@@ -38,6 +42,7 @@ export class Simulation {
     return c;
   }
   reset() {
+    this.pendingStep=undefined;
     this.selfContact.reset();
     for(const c of this.contactCandidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
     for(const h of this.mesh.hinges){h.plasticOffset=0;h.plasticAccumulated=0;h.lambda=0;}
@@ -46,6 +51,7 @@ export class Simulation {
     this.positions=this.mesh.rest.map(([x,y,z])=>{const px=c*x-s*y;return [cy*px-sy*z,s*x+c*y,sy*px+cy*z];});
     const center=this.center();
     for(const p of this.positions){p[0]-=center[0];p[1]+=this.parameters.height-center[1];p[2]-=center[2];}
+    this.oldPositions=this.positions.map(p=>[...p]);
     this.velocities=this.positions.map(()=>[0,0,0]);this.forces=this.positions.map(()=>[0,0,0]);
     this.status='ready';this.time=0;this.pathLength=0;this.peakDeformation=0;this.panels=[];
     this.start=this.center();this.lastCenter=[...this.start];this.trail=[[...this.start]];
@@ -55,7 +61,19 @@ export class Simulation {
     return {model:this.parameters.aeroModel,surface:this.surface,enabled:this.parameters.aero,density:this.parameters.density,wind:this.parameters.wind,areaWeights:this.mesh.aeroWeights,
       windAt:this.parameters.gusts||this.parameters.turbulence?position=>airVelocity(this.parameters,time,position):undefined};
   }
-  step() {
+  /** Synchronous API for tests/offline runs; finishes any partially advanced step. */
+  step() {this.stepUntil(()=>false);}
+  /** Yield only between complete internal substeps. True means an outer step
+   * finished and may be recorded. Pausing keeps the iterator; reset discards it. */
+  stepUntil(shouldYield:()=>boolean):boolean {
+    if(this.status!=='flying'&&!this.pendingStep)return true;
+    this.pendingStep??=this.integrateStep();
+    do {
+      if(this.pendingStep.next().done){this.pendingStep=undefined;return true;}
+    } while(!shouldYield());
+    return false;
+  }
+  private *integrateStep():Generator<void,void,void> {
     if(this.status!=='flying')return;
     // Very light sheets accelerate much faster under panel loads. Resolve them
     // with smaller substeps while keeping the recorded 120 Hz clock unchanged.
@@ -71,8 +89,10 @@ export class Simulation {
     const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
     const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
     const rigidity=this.mesh.hinges.map(h=>hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1));
+    const membraneAlpha=this.membranes.map(t=>membraneAlphas(t,this.material,dt));
     for(let substep=0;substep<substeps;substep++){
-      const old=this.positions.map(p=>[...p] as V3);
+      const old=this.oldPositions;
+      for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)old[i][d]=this.positions[i][d];
       for(let i=0;i<this.forces.length;i++){this.forces[i][0]=0;this.forces[i][1]=-this.parameters.gravity*this.mesh.masses[i];this.forces[i][2]=0;}
       this.panels=aerodynamicLoads(this.positions,this.velocities,this.mesh.faces,this.aeroSettings(),this.forces);
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++){
@@ -80,14 +100,14 @@ export class Simulation {
         this.positions[i][d]+=dt*this.velocities[i][d];
       }
       for(const e of this.mesh.edges)e.lambda=0;
-      for(const t of this.membranes)t.lambda=[0,0,0];
+      for(const t of this.membranes){t.lambda[0]=0;t.lambda[1]=0;t.lambda[2]=0;}
       for(const h of this.mesh.hinges)h.lambda=0;
       const contacts=this.parameters.layerModel==='contact'?detectLayerContacts(this.positions,old,this.contactCandidates):[];
       this.selfContact.beginStep();
       for(let iteration=0;iteration<this.parameters.iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
-        for(let j=0;j<this.membranes.length;j++)solveMembrane(this.positions,this.invMass,this.membranes[forward?j:this.membranes.length-1-j],this.material,dt);
+        for(let j=0;j<this.membranes.length;j++)solveMembrane(this.positions,this.invMass,this.membranes[forward?j:this.membranes.length-1-j],this.material,dt,membraneAlpha[forward?j:this.membranes.length-1-j]);
         for(let j=0;j<this.mesh.hinges.length;j++){
           const h=this.mesh.hinges[forward?j:this.mesh.hinges.length-1-j];
           // Effective bending rigidity D; crease stiffness is an independent torsional spring.
@@ -113,6 +133,7 @@ export class Simulation {
       const center=this.center();this.pathLength+=length(sub(center,this.lastCenter));this.lastCenter=center;
       if(this.positions.some(p=>p[1]<=0)){this.status='landed';break;}
       if(this.time>=12){this.status='finished';break;}
+      if(substep+1<substeps)yield;
     }
     this.trail.push(this.center());
     this.peakDeformation=Math.max(this.peakDeformation,this.deformation().rms);
@@ -146,9 +167,20 @@ export class Simulation {
 /** Rendering can slow down under load, but never takes a larger physical timestep. */
 export class FixedClock {
   accumulator=0; droppedTime=0;
-  advance(elapsed:number,step:()=>void){
-    const accepted=Math.min(Math.max(elapsed,0),0.1);this.droppedTime+=Math.max(0,elapsed-accepted);this.accumulator+=accepted;
-    let steps=0;while(this.accumulator>=FIXED_DT-1e-12 && steps<12){step();this.accumulator-=FIXED_DT;steps++;}return steps;
+  /** Return false from step when it yielded before finishing an outer step. */
+  advance(elapsed:number,step:()=>unknown,shouldYield:()=>boolean=()=>false){
+    const accepted=Math.min(Math.max(elapsed,0),0.1);this.droppedTime+=Math.max(0,elapsed-accepted);
+    // Bound catch-up debt when work spans frames. Dropped wall time slows the
+    // flight; it never skips integration or changes the physical timestep.
+    const accumulated=this.accumulator+accepted;
+    this.accumulator=Math.min(accumulated,0.1);this.droppedTime+=Math.max(0,accumulated-this.accumulator);
+    let steps=0;
+    while(this.accumulator>=FIXED_DT-1e-12 && steps<12){
+      if(step()===false)break;
+      this.accumulator-=FIXED_DT;steps++;
+      if(shouldYield())break;
+    }
+    return steps;
   }
   reset(){this.accumulator=0;this.droppedTime=0;}
 }

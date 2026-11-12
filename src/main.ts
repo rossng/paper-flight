@@ -1,5 +1,5 @@
 import './style.css';
-import { DEFAULTS, FixedClock, Simulation, type Parameters } from './physics/simulation';
+import { DEFAULTS, FixedClock, Simulation, FRAME_PHYSICS_BUDGET_MS, type Parameters } from './physics/simulation';
 import { materials, materialSettings, type MaterialId } from './physics/materials';
 import { airVelocity } from './physics/weather';
 import { elasticPull, pullTravel, launchSpeed, RELEASE_DURATION_MS, springRemaining } from './physics/launcher';
@@ -252,6 +252,9 @@ function updateUI(){updateWindIndicator();updateLiftMeter();updateStallMeter();c
  $('result-stars').textContent=simulation.status==='error'?'✕':'★'.repeat(Math.min(3,Math.floor(m.distance/5)))+'☆'.repeat(3-Math.min(3,Math.floor(m.distance/5)));$('result').hidden=false;$('result-label').textContent=simulation.status==='error'?'FLIGHT INTERRUPTED':simulation.status==='finished'?'FLIGHT TIME LIMIT':record?'NEW RECORD!':'TOUCHDOWN!';$('result-distance').textContent=m.distance.toFixed(1);$('result-detail').textContent=simulation.status==='error'?'The solver could not finish this flight. Try another fold.':`${m.time.toFixed(1)}s airtime · ${m.distance>=15?'Ace pilot!':m.distance>=10?'Nice flight!':m.distance>=5?'Getting the hang of it!':'Try more power or a different pitch.'}`;$('flight-state').textContent='NICE LANDING!';$('launch-help').textContent='';
  }
 }
-function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!paused&&simulation.status==='flying')clock.advance(elapsed,()=>{simulation.step();recording.capture(simulation);});if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();viewport.render();if(mode==='workbench')foldingView.render();requestAnimationFrame(animate);}
+function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!paused&&simulation.status==='flying'){
+ const deadline=performance.now()+FRAME_PHYSICS_BUDGET_MS,shouldYield=()=>performance.now()>=deadline;
+ clock.advance(elapsed,()=>{const complete=simulation.stepUntil(shouldYield);if(complete)recording.capture(simulation);return complete;},shouldYield);
+ }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();viewport.render();if(mode==='workbench')foldingView.render();requestAnimationFrame(animate);}
 new ResizeObserver(()=>paintSling()).observe($('launch-overlay'));
 document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();clock.reset();});drawSheet();updateUI();requestAnimationFrame(animate);
