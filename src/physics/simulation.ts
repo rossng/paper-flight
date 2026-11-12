@@ -1,6 +1,7 @@
 import { buildMembranes, solveMembrane, type Membrane } from './membrane';
 import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
 import { buildContactCandidates, detectLayerContacts, solveLayerContact, type ContactCandidate } from './layer-contact';
+import { SelfContactSolver } from './self-contact';
 import { sheetMaterial, prepareMaterialGeometry, hingeStiffness, updateCreasePlasticity, type SheetMaterial } from './sheet-material';
 import { createDart, hingeAngle, type PaperMesh } from '../geometry/dart';
 import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynamics';
@@ -17,6 +18,7 @@ export interface Metrics { time:number; speed:number; altitude:number; distance:
 export class Simulation {
   tributaryArea:number[]; membranes:Membrane[];
   surface:LiftingSurface; material:SheetMaterial; contactCandidates:ContactCandidate[];
+  selfContact:SelfContactSolver;
   mesh:PaperMesh; positions:V3[]=[]; velocities:V3[]=[]; forces:V3[]=[]; invMass:number[];
   panels:PanelLoad[]=[]; parameters:Parameters; status:Status='ready'; time=0; pathLength=0;
   start:V3=[0,0,0]; trail:V3[]=[]; peakDeformation=0; lastCenter:V3=[0,0,0];
@@ -28,7 +30,7 @@ export class Simulation {
     this.membranes=buildMembranes(this.mesh);
     this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
     this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
-    this.contactCandidates=buildContactCandidates(this.mesh);this.reset();
+    this.contactCandidates=buildContactCandidates(this.mesh);this.selfContact=new SelfContactSolver(this.mesh);this.reset();
   }
   center(array=this.positions):V3 {
     const c:V3=[0,0,0],mass=this.mesh.masses.reduce((a,b)=>a+b,0);
@@ -36,6 +38,7 @@ export class Simulation {
     return c;
   }
   reset() {
+    this.selfContact.reset();
     for(const c of this.contactCandidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
     for(const h of this.mesh.hinges){h.plasticOffset=0;h.plasticAccumulated=0;h.lambda=0;}
     const angle=radians(this.parameters.pitch),c=Math.cos(angle),s=Math.sin(angle);
@@ -80,6 +83,7 @@ export class Simulation {
       for(const t of this.membranes)t.lambda=[0,0,0];
       for(const h of this.mesh.hinges)h.lambda=0;
       const contacts=this.parameters.layerModel==='contact'?detectLayerContacts(this.positions,old,this.contactCandidates):[];
+      this.selfContact.beginStep();
       for(let iteration=0;iteration<this.parameters.iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
@@ -91,9 +95,16 @@ export class Simulation {
           solveHinge(this.positions,this.invMass,h,1/Math.max(k,1e-8),dt);
         }
         if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(this.positions,this.invMass,tie);
-        for(const contact of contacts)solveLayerContact(this.positions,this.invMass,contact,this.material.friction);
         for(let j=0;j<this.mesh.edges.length;j++)limitEdgeStrain(this.positions,this.invMass,this.mesh.edges[forward?j:this.mesh.edges.length-1-j]);
+        for(const contact of contacts)solveLayerContact(this.positions,this.invMass,contact,this.material.friction);
+        if(this.parameters.layerModel==='contact'){
+          // Include structural projection in the sweep, not only free motion.
+          // Contact is last so the strain limiter cannot silently undo it.
+          if(iteration===0||iteration===this.parameters.iterations-1)this.selfContact.detect(old,this.positions);
+          this.selfContact.solve(this.positions,this.invMass,forward);
+        }
       }
+      if(this.parameters.layerModel==='contact')for(let pass=0;pass<4;pass++)this.selfContact.solve(this.positions,this.invMass,pass%2===0);
       for(const h of this.mesh.hinges)if(h.crease)updateCreasePlasticity(h,hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]),this.material);
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)this.velocities[i][d]=(this.positions[i][d]-old[i][d])/dt;
       dampEdges(this.positions,this.velocities,this.invMass,this.mesh.edges,1-Math.exp(-18*dt));
