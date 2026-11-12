@@ -1,11 +1,11 @@
-import {recipes} from './recipes';
+import {findDesign} from './library';
 import {build,type FoldRecipe} from './model';
 import {compileFlightMesh} from './flight-mesh';
 import type {Parameters} from '../physics/simulation';
-/** The tapered Folded Dart recipe currently supports only its authored width. */
-export function supportsWingSpan(id:string){return ['legacy','basic','stable'].includes(id);}
+/** Only validated wing-root adjustments are exposed by the shared registry. */
+export function supportsWingSpan(id:string){return findDesign(id)?.adjustableSpan??false;}
 export function flightRecipe(id:string,parameters:Parameters):FoldRecipe {
- const original=recipes.find(r=>r.id===id);if(!original)throw Error('Unknown fold design');const recipe=structuredClone(original);recipe.gsm=parameters.paperWeight;
+ const original=findDesign(id)?.recipe;if(!original)throw Error('Unknown fold design');const recipe=structuredClone(original);recipe.gsm=parameters.paperWeight;
  for(const op of recipe.operations)if(op.id==='left-wing'||op.id==='right-wing'){
   const delta=(1-(supportsWingSpan(id)?parameters.span:1))*recipe.width/4;
   if(op.axis[0][0]>1e-8)op.axis[0][0]+=delta;op.axis[1][0]+=delta;
