@@ -1,0 +1,323 @@
+{
+  "date": "2026-11-12",
+  "runtime": "Node v26.12.1",
+  "commands": [
+    "npm run benchmark:physics",
+    "npm run benchmark"
+  ],
+  "convergence": [
+    {
+      "stations": 8,
+      "cl": 0.24650411684840615,
+      "cd": 0.0026415296481778695,
+      "analyticCL": 0.23843985100086776,
+      "liftErrorPercent": 3.382096496742504,
+      "inducedDragErrorPercent": -13.988088430693136
+    },
+    {
+      "stations": 16,
+      "cl": 0.24310472364308597,
+      "cd": 0.0027422349697518297,
+      "analyticCL": 0.2388887818438765,
+      "liftErrorPercent": 1.764813636985596,
+      "inducedDragErrorPercent": -7.472934602712922
+    },
+    {
+      "stations": 32,
+      "cl": 0.24116561088226224,
+      "cd": 0.0027989746010618917,
+      "analyticCL": 0.23901325214888222,
+      "liftErrorPercent": 0.9005185754467293,
+      "inducedDragErrorPercent": -3.824577327495182
+    },
+    {
+      "stations": 64,
+      "cl": 0.24013394661779278,
+      "cd": 0.002828249354301821,
+      "analyticCL": 0.23904599172790722,
+      "liftErrorPercent": 0.45512366972624285,
+      "inducedDragErrorPercent": -1.9256985007820804
+    },
+    {
+      "segments": 6,
+      "model": "panels",
+      "force": [
+        -0.21380324888346158,
+        1.6140576275632994,
+        0
+      ]
+    },
+    {
+      "segments": 6,
+      "model": "coupled",
+      "force": [
+        -0.13152639975746297,
+        2.652253067666219,
+        0
+      ]
+    },
+    {
+      "segments": 12,
+      "model": "panels",
+      "force": [
+        -0.2138032488834615,
+        1.6140576275632992,
+        0
+      ]
+    },
+    {
+      "segments": 12,
+      "model": "coupled",
+      "force": [
+        -0.1315263997574629,
+        2.652253067666217,
+        0
+      ]
+    },
+    {
+      "segments": 24,
+      "model": "panels",
+      "force": [
+        -0.21380324888346144,
+        1.6140576275632987,
+        0
+      ]
+    },
+    {
+      "segments": 24,
+      "model": "coupled",
+      "force": [
+        -0.13152639975746291,
+        2.652253067666219,
+        0
+      ]
+    },
+    {
+      "segments": 48,
+      "model": "panels",
+      "force": [
+        -0.2138032488834616,
+        1.6140576275632987,
+        0
+      ]
+    },
+    {
+      "segments": 48,
+      "model": "coupled",
+      "force": [
+        -0.13152639975746291,
+        2.6522530676662175,
+        0
+      ]
+    },
+    {
+      "substeps": 0,
+      "iterations": 24,
+      "rows": 8,
+      "columns": 5,
+      "center": [
+        1.816575825930016,
+        2.012852075189579,
+        0.0021091262683626565
+      ],
+      "deformationMm": 15.177845899726071,
+      "maxStrain": 0.01859553180596074,
+      "centerDeltaFromPrevious": null,
+      "msPerStep": 7.769171
+    },
+    {
+      "substeps": 3,
+      "iterations": 24,
+      "rows": 8,
+      "columns": 5,
+      "center": [
+        1.9566998830973208,
+        1.7543279433704297,
+        -0.0002970696161171427
+      ],
+      "deformationMm": 8.763912800878886,
+      "maxStrain": 0.020000000000016893,
+      "centerDeltaFromPrevious": 0.2940667745742547,
+      "msPerStep": 6.2279401041666675
+    },
+    {
+      "substeps": 6,
+      "iterations": 24,
+      "rows": 8,
+      "columns": 5,
+      "center": [
+        1.6810954805594736,
+        2.108321428417758,
+        0.001429796290175881
+      ],
+      "deformationMm": 12.78570323643677,
+      "maxStrain": 0.00854502228181575,
+      "centerDeltaFromPrevious": 0.4486336548009466,
+      "msPerStep": 11.828794270833333
+    },
+    {
+      "substeps": 9,
+      "iterations": 24,
+      "rows": 8,
+      "columns": 5,
+      "center": [
+        1.646071232875425,
+        2.1413944251562502,
+        -2.2620388854512714e-05
+      ],
+      "deformationMm": 11.146275979710358,
+      "maxStrain": 0.004799138855887897,
+      "centerDeltaFromPrevious": 0.04819367752420887,
+      "msPerStep": 15.745085083333331
+    },
+    {
+      "substeps": 9,
+      "iterations": 48,
+      "rows": 8,
+      "columns": 5,
+      "center": [
+        1.6516441494184646,
+        2.1540294387467127,
+        -6.617728762219849e-05
+      ],
+      "deformationMm": 10.446623101616328,
+      "maxStrain": 0.001794414331482086,
+      "centerDeltaFromPrevious": 0.013809520789306426,
+      "msPerStep": 28.543204854166664
+    },
+    {
+      "substeps": 9,
+      "iterations": 48,
+      "rows": 12,
+      "columns": 7,
+      "center": [
+        1.6697600956082213,
+        2.113442111902666,
+        0.0014891924682702393
+      ],
+      "deformationMm": 11.517425433275903,
+      "maxStrain": 0.0067515560750719406,
+      "centerDeltaFromPrevious": 0.04447401243167959,
+      "msPerStep": 64.0335381875
+    },
+    {
+      "substeps": 9,
+      "iterations": 48,
+      "rows": 16,
+      "columns": 9,
+      "center": [
+        1.7151181421156287,
+        2.076246377379116,
+        0.002501058183947998
+      ],
+      "deformationMm": 12.495728954238755,
+      "maxStrain": 0.00973934575662816,
+      "centerDeltaFromPrevious": 0.05866769913624607,
+      "msPerStep": 109.14084981250001
+    },
+    {
+      "id": "basic",
+      "layerModel": "contact",
+      "center": [
+        1.7421147051673185,
+        1.4973119746103114,
+        0.04861389275367571
+      ],
+      "deformationMm": 10.185643797959049,
+      "maxStrain": 0.01626602001520605,
+      "msPerStep": 12.670634541666649
+    },
+    {
+      "id": "basic",
+      "layerModel": "bonded",
+      "center": [
+        1.9107763867146266,
+        1.5729600302098787,
+        0.021494077534844516
+      ],
+      "deformationMm": 0.8008882218287473,
+      "maxStrain": 0.016376735494091355,
+      "msPerStep": 11.475987854166647
+    },
+    {
+      "id": "dart",
+      "layerModel": "contact",
+      "center": [
+        1.9857478747224486,
+        1.3778593853426613,
+        0.0018611234940019315
+      ],
+      "deformationMm": 2.529370505329444,
+      "maxStrain": 0.012739897275960144,
+      "msPerStep": 30.650929687500025
+    },
+    {
+      "id": "dart",
+      "layerModel": "bonded",
+      "center": [
+        2.0770618034607846,
+        1.349371860965327,
+        -0.0009518761722691455
+      ],
+      "deformationMm": 0.7682209949007973,
+      "maxStrain": 0.001659387476013574,
+      "msPerStep": 20.172865458333302
+    },
+    {
+      "id": "stable",
+      "layerModel": "contact",
+      "center": [
+        1.7473513491625798,
+        1.3757579727257983,
+        -0.11685728905528567
+      ],
+      "deformationMm": 3.4887726343551186,
+      "maxStrain": 0.02294045913879894,
+      "msPerStep": 13.538054687499994
+    },
+    {
+      "id": "stable",
+      "layerModel": "bonded",
+      "center": [
+        2.0833300121118494,
+        1.2583228850518258,
+        -0.0021973750815528106
+      ],
+      "deformationMm": 0.15334574415916316,
+      "maxStrain": 0.0026716963439894492,
+      "msPerStep": 11.463420125000008
+    }
+  ],
+  "flights": [
+    {
+      "stiffness": 0.2,
+      "status": "landed",
+      "flightSeconds": 1.4166666666666623,
+      "rangeMetres": 1.6651205960811302,
+      "peakDeformationMm": 25.40370755770261,
+      "maxEdgeStrainPercent": 1.367000771088711,
+      "meanPhysicsMsPerStep": 2.9074642352941207,
+      "wallSeconds": 0.5026644579999999
+    },
+    {
+      "stiffness": 1,
+      "status": "landed",
+      "flightSeconds": 1.9638888888888826,
+      "rangeMetres": 4.951815108520967,
+      "peakDeformationMm": 17.657011540139415,
+      "maxEdgeStrainPercent": 1.859553180596074,
+      "meanPhysicsMsPerStep": 2.754259677966108,
+      "wallSeconds": 0.6571097499999999
+    },
+    {
+      "stiffness": 5,
+      "status": "landed",
+      "flightSeconds": 2.880555555555546,
+      "rangeMetres": 8.82820301817113,
+      "peakDeformationMm": 11.516012697826051,
+      "maxEdgeStrainPercent": 2.000000000000779,
+      "meanPhysicsMsPerStep": 2.679412578034685,
+      "wallSeconds": 0.936878791
+    }
+  ]
+}

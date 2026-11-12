@@ -8,21 +8,21 @@ The compiler takes the actual deployed panel positions. Material-space topology 
 
 Wing-width edits change the wing-root crease in the recipe rather than stretching the deployed sheet. Wing V changes the two deployment angles. Both retain the complete sheet area. Paper weight changes material mass and the global single-layer bending multiplier.
 
-## Laminate attachment and stiffness
+## Directional sheets and sliding contact
 
-Every vertex lying on a different overlapping material panel can be attached to a barycentric point on that panel. The constraint projects the vertex and target triangle with inverse-mass weights; it does not pin either to the world. Free translation and total centre of mass are tested. These attachments maintain a folded laminate and approximate the holding of locked flaps.
+Original material UVs are carried through centroid fans and edge refinement. The solver uses them for machine/cross-direction membrane stiffness and directional hinge bending. Grammage and nominal material density set thickness; elastic moduli set stretch/shear and bending response. Fold creases retain their authored rest angles and acquire a separate permanent offset when their effective yield angle is exceeded. See [the material equations and nominal parameters](physics-upgrade.md).
 
-This is **not frictional contact**: layers cannot slide, peel or separate. There is no finite-thickness collision solver. The attachments may make overlapped regions too rigid, especially where unlike tessellations are coupled.
+Default `layerModel: 'contact'` replaces rigid ties with unilateral vertex/triangle contact across initially coplanar material groups. Projected barycentric contact points update each substep, so vertices can move across target triangle boundaries. Contact resists crossing the approached surface, permits opening, and applies Coulomb friction only under compression. Equal/opposite inverse-mass-weighted corrections preserve the sheet's mass centre. Each actual material layer supplies its own bending energy; no bonded layer-count multiplier is applied in contact mode.
 
-We estimate local layer count in the deployed shape. Each hinge gets an additional bending multiplier `n^(2c)`, where `n` is the mean local count across its two faces and `c` is an explicit compilation parameter in [0,1]. Because all material layers already contribute their own bending constraints, this roughly interpolates between an `n D` aggregate lower bound and an `n³ D` bonded upper bound. The default `c = 0.5` is an empirical intermediate assumption, not a measured paper-friction law. Crease stiffness remains distinct from interior bending stiffness.
+This is a zero-clearance midsurface approximation that preserves the zero-thickness recipe geometry. A physically certified stacking order is unavailable: sides are selected by initial local opening and then the previous deformed state. It is not general continuous self-collision, finite-thickness stacking or proof that a locking flap holds. Edge/edge crossings and contact outside the initially coplanar groups remain unresolved. The workbench folding animation is still purely kinematic.
 
-Thickness-sensitive plate bending motivates the limiting behaviour; see [MIT Structural Mechanics, plate bending](https://ocw.mit.edu/courses/2-080j-structural-mechanics-fall-2013/f8fd2ad49d100766335b4e129a8a4791_MIT2_080JF13_Lecture7.pdf). Constraint integration builds on the existing [XPBD formulation](https://mmacklin.com/xpbd.pdf). Neither source validates this specific laminate approximation.
+For explicit comparisons, `layerModel: 'bonded'` restores the old barycentric ties and local `n^(2c)` bending multiplier, with compilation `layerCoupling = c` in [0,1], default 0.5. Its ties prohibit sliding/peeling. That model is retained as a benchmark approximation, not silently mixed into the default contact mechanics.
 
-## Aerodynamic exposure
+## Exposed aerodynamic surface
 
-Applying full lift and drag to every overlapping layer would multiply the lifting area. Instead, 48 deterministic area samples per triangle estimate the reciprocal overlap count. Each triangle's current aerodynamic area is multiplied by that rest-state exposure fraction. Exactly coincident duplicate surfaces consequently share one effective area, while all their mass remains present.
+The compiler retains material identities and the baseline's 48-sample static exposure weights. Default flight builds a separate spanwise aerodynamic quadrature, computes dynamic near-coplanar exposure at current patch positions, and solves coupled circulation/downwash. Sliding and separation can therefore change aerodynamic area during flight. Static compiler weights are used only by the independent-panel comparison path (`aeroModel: 'panels'`).
 
-This is approximate area integration, not resolved airflow. It handles coplanar overlap, not arbitrary upstream shadowing or a wake. The exposure weights stay fixed because the attachment model prevents layer separation; they would need to be recomputed or replaced if peeling/sliding is introduced. Force still uses current deformed triangle geometry, normals and velocities.
+Patch barycentric weights interpolate position and velocity and distribute force to the same structural triangle. This preserves both force and moment. Layer masses are never removed by exposure. The planar lifting-line model includes span interaction, tip unloading and induced drag, with a separated-flow fallback for large incidence and reverse flight. It is not full 3D flow around a folded stack. See [the aerodynamic model and limitations](physics-upgrade.md).
 
 ## Replay displacement field
 
@@ -32,12 +32,12 @@ These arrows show **displacement, not aerodynamic force**. They remove translati
 
 ## Verification and limits
 
-Replay also records vertex velocities. The centre-of-mass marker uses the material masses, including every overlapping layer. The centre-of-lift marker re-evaluates the same aerodynamic model on interpolated positions and velocities, with the flight's wind, air density and layer exposure weights; it never uses the final landed frame's loads for an earlier moment. Lift is retained separately from drag without changing the force integrated by the solver.
+Replay also records vertex velocities. The centre-of-mass marker uses the material masses, including every overlapping layer. The centre-of-lift marker re-evaluates the same aerodynamic model on interpolated positions and velocities, with the flight's wind, air density, dynamic exposure and coupled circulation; it never uses the final landed frame's loads for an earlier moment. Lift is retained separately from drag without changing the force integrated by the solver.
 
 The displayed lift location is a signed centroid: panel lift is projected onto the net lift direction, then each panel centre is weighted by that signed contribution. Opposing contributions are retained. The marker hides when net lift is below 10⁻⁸ N or 0.1% of summed lift magnitudes. For nonparallel loads this is an estimate, not an exact 3D centre of pressure, a fixed aerodynamic centre, or a stability verdict. See [NASA's explanation of distributed aerodynamic force and centre of pressure](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/center-of-pressure/).
 
 Takeoff and Landing pause playback and seek to the corresponding recorded moment before framing the plane. Follow mode therefore remains anchored to the frame being displayed. Full path turns follow and the close-inspection overlays off.
 
-Tests check source mass and folded centre of mass, layer-local hinge multipliers, aerodynamic area sharing, rigid-motion removal from flex vectors, mass scaling, free translation, finite complete flights for all three designs, and one extreme launch. The local coupling test compares deformation for identical mass/geometry under different laminate stiffness settings. Browser checks cover launching the three designs, replay/scrubbing, flex scaling, follow-camera and the layer overlay on desktop and mobile.
+Tests check source mass and folded centre of mass, material coordinates, reference laminate multipliers, conservative aerodynamic transfer, dynamic exposure, sliding/separating contact and friction, rigid-motion removal, finite complete flights, crease permanent set, and replay re-evaluation. The old local bending-coupling comparison explicitly selects bonded mode. [The benchmark report](physics-validation.md) includes analytic lifting-line and numerical resolution studies.
 
-The examples fly, deform and land, but flight distances and material constants are not calibrated against real paper. No general self-contact, tearing or finite-thickness contact has been added. This is a practical integration of the fold definitions, with its approximation kept explicit.
+The examples remain a practical integration of the recipes. Flight distances, crease constants and friction coefficients are uncalibrated; contact cannot certify arbitrary folds. No tearing, general continuous self-contact or collision-aware workbench folding is implemented.

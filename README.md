@@ -1,6 +1,6 @@
 # Paper Flight — Backyard Test Pilot
 
-A browser-only TypeScript / Vite / Three.js experiment in coupled paper-aeroplane flight. The aircraft is a free deformable particle mesh: gravity and per-triangle aerodynamic forces drive its translation, rotation, bending, and twist. There are no scripted flight trajectories, prescribed in-flight attitude changes, or in-flight position anchors. Workbench folds are animated separately using the recipe’s crease rotations.
+A browser-only TypeScript / Vite / Three.js experiment in coupled paper-aeroplane flight. The aircraft is a free deformable particle mesh: gravity and coupled exposed-surface aerodynamic forces drive its translation, rotation, bending, and twist. There are no scripted flight trajectories, prescribed in-flight attitude changes, or in-flight position anchors. Workbench folds are animated separately using the recipe’s crease rotations.
 
 ## Run locally
 
@@ -17,6 +17,7 @@ Open the URL printed by Vite, normally `http://localhost:5173`. The server only 
 ```sh
 npm test          # numerical and behavioural regression checks
 npm run benchmark # repeat the soft / standard / stiff flight measurements
+npm run benchmark:physics # aerodynamic and flexible-solver convergence evidence
 npm run build     # type-check and produce dist/
 npm run preview   # serve the production build
 ```
@@ -52,110 +53,55 @@ The mesh is an **effective folded surface**, not a complete A4 sheet with every 
 
 Geometry exposes rest vertices, indexed triangles, edge lengths, signed hinge angles, crease flags, masses, and body-frame landmarks. Another design can replace this factory while retaining the solver and rendering interfaces. A future FOLD importer should build these same data structures and explicitly resolve overlapping panels.
 
-## Structure: compliant bar-and-hinge XPBD
+## Structure and folded layers
 
-The physics module does not import Three.js or browser APIs. All quantities use metres, kilograms, seconds, newtons, and radians.
+The renderer-independent solver uses metres, kilograms, seconds, newtons and radians. Sheet properties now explicitly specify density, thickness, machine/cross-direction elastic moduli, shear modulus and Poisson ratio. Grammage and density determine thickness. Material coordinates survive fold compilation and refinement; directional membrane stretch/shear and plate bending follow the original paper grain. Bending scales with thickness cubed. Each physical layer contributes its own mass and bending energy.
 
-Each edge enforces a nearly inextensible distance constraint:
+XPBD triangle membrane and signed hinge constraints evolve the flexible sheet. Creases have an effective damaged-band width, retained stiffness, yield angle and isotropic hardening. Excess crease rotation produces permanent set during a flight; launch/reset restores the authored shape. Nominal properties are illustrative, not measured paper products.
 
-```text
-C_edge(x) = |x_i - x_j| - L_rest
-edge compliance = 2e-8 m/N
-```
+Overlapping recipe layers use unilateral contact and Coulomb friction. They can slide across triangle boundaries and separate; no tensile glue holds them together. The zero-thickness kinematic folds retain their exact geometry, so contact uses zero-clearance midsurfaces, with sides inferred from local opening and the previous deformed state. This is restricted vertex/triangle contact among initially coplanar material groups, not general continuous self-collision or a certified physical lock. The old bonded-laminate approximation remains an explicit benchmark option.
 
-Each pair of adjacent triangles has a signed dihedral constraint:
+The outer physics clock remains **120 Hz**, with at least three substeps (nine for tissue), increasing when a local aerodynamic damping estimate requires smaller steps. There are 24 alternating constraint sweeps. A near-inextensible strain envelope is a numerical safeguard for the no-tearing game, not a constitutive failure law. Pairwise internal damping preserves pair momentum. There are no flight anchors or attitude controllers. First ground contact or 12 simulated seconds ends the run.
 
-```text
-C_hinge(x) = wrap(theta(x) - theta_rest)
-E_hinge = 1/2 k C_hinge²
-k_flat   = (3.5e-4 N m) × paper_multiplier × edge_length² / (A1 + A2)
-k_crease = (2.5e-3 N m) × crease_multiplier × edge_length² / (A1 + A2)
-compliance_hinge = 1/k
-```
+## Coupled whole-wing aerodynamics
 
-The rest area weighting approximates a discrete shell bending energy. These constants are effective prototype parameters, **not calibrated paper moduli**. Creases can be relatively stiff because the effective keel includes multiple folded layers; the crease multiplier is independent of the flat-sheet multiplier. Twist emerges from the coupled triangle hinges rather than a separate scripted wing-twist degree of freedom.
+A separate exposed aerodynamic quadrature is mapped conservatively onto the flexible material mesh. Twelve span stations solve interacting circulation through trailing-vortex downwash. Geometry-dependent chord, span and incidence produce neighbour interaction, tip unloading and induced drag. Local incidence retains reflex trim moments. Loads and their moments transfer exactly through barycentric weights.
 
-After external-force integration, XPBD projects each scalar constraint using inverse masses `w_i`:
+Compiled layers dynamically share near-coplanar exposed area; sliding or peeling updates shielding. Wind/gust/turbulence is evaluated at current patch positions and time. Replay uses the same circulation and exposure calculation on recorded positions and velocities.
 
-```text
-alpha_tilde = compliance / dt²
-Delta_lambda = (-C - alpha_tilde × lambda) /
-               (sum_i w_i |gradient_i C|² + alpha_tilde)
-x_i += w_i × gradient_i C × Delta_lambda
-```
+This is a reduced **planar lifting-line** model. It blends smoothly to a dissipative separated flat-sheet polar for large incidence, reverse flow, sideslip and steep panels. It does not resolve low-aspect-ratio vortex lift, unsteady wakes, dynamic stall, full 3D sweep interaction or a pressure field. Shielding is local quadrature, not general flow occlusion. The old independent-panel polar remains available as `aeroModel: 'panels'` for comparison.
 
-Multipliers accumulate within a substep and reset for the next substep. Signed `atan2` angles preserve mountain/valley orientation, including the flat state. Degenerate triangles and zero-length edges are guarded. The analytic gradients are checked against finite differences.
-
-A fixed outer step of **1/120 s** uses **3 substeps at 1/360 s** (9 at 1/1080 s for sheets under 30 gsm) and **24 alternating Gauss–Seidel sweeps** per substep. Near-zero stretch compliance and finite iteration count mean stretch is small, not exactly zero. Changing solver resolution changes truncation error and can change flight results; a convergence study is still needed.
-
-Velocities are reconstructed from the corrected positions. Pairwise axial damping dissipates strain-rate motion while preserving linear and angular momentum for each pair; first-order integration also provides numerical damping. There is no global velocity drag masquerading as structural damping. Aerodynamic drag remains a separate physical force. Gravity is applied per vertex.
-
-The aircraft is never pinned during flight. Torques arise from the spatial distribution of aerodynamic forces and mass; no stabilizing controller or extra pitch spring is present. A run stops at first vertex-ground contact, or after 12 simulated seconds. Impact, bounce, sliding, and crumpling are intentionally not simulated.
-
-## Aerodynamics: current geometry, distributed loads
-
-For each triangle, every substep:
-
-```text
-A = 1/2 |(x_b - x_a) cross (x_c - x_a)|
-n = normalize((x_b - x_a) cross (x_c - x_a))
-v_rel = (v_a + v_b + v_c)/3 - wind
-u = normalize(v_rel)
-alpha = asin(clamp(-u dot n, -1, 1))
-q = 1/2 rho |v_rel|²
-lift_direction = normalize(n - u (u dot n))
-F = q A (CL lift_direction - CD u)
-```
-
-`F/3` is applied directly to each vertex. The resultant therefore acts at the triangle centroid and can bend the wing and rotate the whole aircraft. Areas, normals, and velocities come from the **deformed mesh**, including local deformation velocities. Original mesh normals never enter the force calculation. Air density defaults to 1.225 kg/m³. Wind defaults to zero; the launch weather pane selects a base breeze and optional gusts/turbulence. Each panel samples air velocity at its current centre and simulation time.
-
-The empirical low-aspect-ratio polar is:
-
-```text
-b = smoothstep(15 degrees, 30 degrees, |alpha|)
-CL = (1-b) × 2.7 alpha + b × 0.85 sin(2 alpha)
-CD = (1-b) × (0.035 + 0.18 CL²) + b × (0.08 + 1.75 sin²(alpha))
-```
-
-This provides an attached-flow regime and a smooth separated-flow regime. It can produce gliding, diving, loss of lift, and tumbling as outcomes of the equations. The stall indicator reports the area fraction above 15° local incidence, **not a CFD-derived stall boundary**. Reversing triangle winding leaves the force unchanged. Lift is perpendicular to relative velocity; drag removes energy in still air.
-
-### Aerodynamic limitations
-
-- Quasi-steady local panels do not solve incompressible flow, circulation, pressure, or a wake. The drag term only approximates induced losses; neighbouring panels do not communicate through airflow.
-- There is no dynamic stall, vortex lift model, separation hysteresis, Reynolds-number dependence, ground effect, or panel pitching moment.
-- An orientation-only sheet polar does not distinguish a leading edge from a trailing edge. Reverse flight is treated as a symmetric flat-sheet case.
-- Overlapping surfaces receive independent forces. There is **no shielding or occlusion**. The effective dart omits hidden paper layers to avoid counting them as extra lifting area; adding literal overlapping sheets without fixing this would overpredict force.
-- No self-contact or tearing is implemented. Very soft creases and high-speed, high-pitch launches can fold the wings through one another. They may remain numerically finite while being physically inaccurate.
-- Coarse discretization, finite solver sweeps, and first-order time integration can introduce damping, small asymmetry, and trim error. These need calibration before quantitative prediction.
+See [the equations, nominal properties, contact scope and limitations](docs/physics-upgrade.md), [folded-mesh integration](docs/folded-flight.md) and [validation/convergence evidence](docs/physics-validation.md). None of the flight distances or material presets is calibrated against measured throws.
 
 ## Visualisation and metrics
 
 Three.js renders the actual deforming aircraft at physical scale in a procedural low-poly field. Its ground shadow follows the deformed plane during flight and replay, softening and fading with altitude. The runway occupies a matching opening in the grass, so the two surfaces do not overlap. Trees and signs are visual landmarks, not collision obstacles; ground contact ends a flight. The workbench drawing is a schematic preview. The field reports horizontal distance from release, simulated air time, centre-of-mass height, and a personal best. The renderer also retains diagnostic mesh/force/heatmap capabilities for future developer views, but these are not part of the game UI.
 
-The physics API exposes deformation RMS with body translation and rotation removed, hinge-angle RMS, edge strain, aerodynamic force, stall fraction, and integrated path length. The benchmark command still compares the original soft, standard, and stiff configurations.
+The physics API exposes deformation RMS with body translation and rotation removed, hinge-angle RMS, edge strain, aerodynamic force, stall fraction, and integrated path length. The benchmark commands compare soft/standard/stiff flights, panel/coupled aerodynamics, elliptic-wing convergence, structural resolution and contact/bonded layers.
 
 ## Validation and performance
 
 `npm test` covers mesh topology and mass, hinge gradients, aerodynamic dissipation and winding invariance, translation and gravity, deterministic stepping and reset, stiffness coupling, parameter extremes, scaled paper mass and release height, directional release velocities, the new workbench extremes through ground contact, detached replay data, and the custom-folding geometry studies.
 
-The production build and numerical suite pass. Headless Chrome interaction checks exercised folding, material selection, pointer launch through landing, keyboard launch, pause/reset, and a 390 px mobile layout without runtime errors or horizontal overflow. These are representative checks, not an exhaustive stability or physical validation study.
+The production build and 73 numerical tests pass. This increment was checked in an isolated headless Chrome session for folding, keyboard launch, unrestricted pitch, recorded replay with lift/flex overlays, and a 390 px mobile layout without uncaught runtime errors or horizontal overflow. Earlier baseline checks also covered material selection, pointer launch and pause/reset. These are representative checks, not exhaustive device coverage or physical calibration.
 
-Physics remains fixed at 120 Hz with three internal substeps, or nine for very light sheets. Device-pixel ratio is capped at 2. Playback can slow under load rather than enlarging the physics timestep. Background-tab time is discarded. A capability message appears if WebGL cannot start.
+Physics remains fixed at 120 Hz with at least three internal substeps, or nine for very light sheets; the aerodynamic damping estimate can increase that count. Device-pixel ratio is capped at 2. Playback can slow under load rather than enlarging the physics timestep. Background-tab time is discarded. A capability message appears if WebGL cannot start.
 
 ## Project map
 
 | Path | Responsibility |
 | --- | --- |
 | `src/geometry/dart.ts` | Effective dart topology, layers, edge and hinge rest state |
-| `src/physics/constraints.ts` | Distance and signed dihedral XPBD, internal damping |
-| `src/physics/aerodynamics.ts` | Empirical polar and current-panel forces |
+| `src/physics/constraints.ts`, `membrane.ts`, `sheet-material.ts` | Directional membrane/hinge XPBD, crease plasticity, internal damping |
+| `src/physics/layer-contact.ts` | Sliding unilateral layer contact and Coulomb friction |
+| `src/physics/aerodynamics.ts`, `lifting-surface.ts` | Exposed quadrature, coupled circulation, separated fallback and baseline polar |
 | `src/physics/simulation.ts` | Free-flight integration, fixed clock, metrics |
 | `src/physics/math.ts` | Renderer-independent vector math |
 | `src/rendering/viewport.ts` | Three.js cameras and deforming meshes |
 | `src/rendering/landscape.ts` | Procedural field, trees, clouds, distance signs |
 | `src/main.ts`, `src/style.css` | Folding workbench, launcher gestures, results, responsive interface |
 | `tests/physics.test.ts` | Numerical and acceptance regressions |
-| `tests/benchmark.ts` | Repeatable flight and timing report |
+| `tests/benchmark.ts`, `tests/physics-benchmark.ts` | Flight, convergence and timing reports |
 
 ## Investigated implementations and next steps
 
@@ -164,13 +110,12 @@ Physics remains fixed at 120 Hz with three internal substeps, or nine for very l
 - [Macklin, Müller, Chentanez: XPBD (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf): compliance-based constraint update.
 - [Three.js documentation](https://threejs.org/docs/) and [Vite documentation](https://vite.dev/guide/): rendering and build tooling.
 
-Useful next steps, in order:
+Useful next steps:
 
-1. Establish a rigid-body reference and mesh/timestep/iteration convergence. Calibrate mass distribution, shell rigidity, crease hysteresis, and aerodynamic polar against measured throws and static deflection tests.
-2. Add self-contact and layer shielding before supporting arbitrary folded designs. Import crease patterns with explicit aerodynamic visibility and mass layers.
-3. Replace the local polar with lifting-line or vortex-lattice/wake coupling for attached flow; account for the low aspect ratio and recognize that conventional VLM will not solve separated flow.
-4. Move the CPU solver into a Web Worker if profiling shows UI contention; use WASM only after measuring a useful gain. Consider iterative fluid/structure coupling for added-mass effects.
-5. For full flow experiments, prototype a separate WebGPU lattice-Boltzmann or incompressible finite-volume solver with moving immersed boundaries. Transfer panel velocities to the flow grid and integrate pressures/shear back onto the mesh with conservative force/torque exchange. Validate grid convergence, boundary conditions, fluid timestep stability, moving-boundary errors, and coupled stability against simpler cases first. A GPU solver is not justified by this small structural mesh alone.
+1. Calibrate nominal materials, crease hysteresis and aerodynamic response against static deflection tests and measured throws. The analytic lifting-line benchmark is not dart calibration.
+2. Add full layer stacking order, finite-thickness and continuous edge/edge self-contact before arbitrary folded designs or crumpling.
+3. Extend the planar lifting-line reduction to sweep/nonplanar vortex geometry and an unsteady wake, while retaining an explicit separated-flow fallback.
+4. Improve numerical convergence and profile performance before moving the solver into a Worker or WASM. Strong flutter, added mass, dynamic stall and general flow shielding need a more complete model.
 
 ## Licensing
 
@@ -178,11 +123,11 @@ Project code is provided under the MIT license. Adapted components and dependenc
 
 ## Custom-folding research prototype
 
-Open `/folding-study.html` or follow the link in the game help dialog. Three independent reconstructions (The Basic, Basic Dart, and The Stable) exercise a new material-coordinate model with explicit layer selection. The study supports 3D inspection during animated forward/reverse folds, fold history and FOLD exports. The panels rotate rigidly about the defined creases; this is zero-thickness kinematics, not a contact simulation. The Original dart quick-start uses a grouped dart recipe as its folding illustration while retaining its separate effective flight mesh. Use Fly this design at any step to complete it and launch it in the game. Flight uses the effective laminate approximation documented below; it is not a frictional contact simulation or a freeform editor. See [the design and findings](docs/custom-folding.md).
+Open `/folding-study.html` or follow the link in the game help dialog. Three independent reconstructions (The Basic, Basic Dart, and The Stable) exercise a new material-coordinate model with explicit layer selection. The study supports 3D inspection during animated forward/reverse folds, fold history and FOLD exports. The panels rotate rigidly about the defined creases; this is zero-thickness kinematics, not a contact simulation. The Original dart quick-start uses a grouped dart recipe as its folding illustration while retaining its separate effective flight mesh. Use Fly this design at any step to complete it and launch it in the game. Flight uses the exposed-surface and restricted sliding-contact model documented below; it is not a freeform editor or a continuous self-collision solver. See [the design and findings](docs/custom-folding.md).
 
 ## Folded designs and flex review
 
-The plane picker connects three fold recipes to the same flexible solver. `src/folding/flight-mesh.ts` triangulates and refines the material panels, preserves their mass distribution, identifies overlapping layers, and builds crease/interior hinges. Static overlap samples share aerodynamic area between coincident layers. Barycentric attachments keep overlapping material together as an effective laminate. Local bending multipliers depend on layer count, with an intermediate coupling assumption; sliding, peeling and finite-thickness contact are not resolved. See [the compiler model](docs/folded-flight.md).
+The plane picker connects three fold recipes to the same flexible solver. `src/folding/flight-mesh.ts` triangulates and refines the material panels, preserves their mass distribution, identifies overlapping layers, and builds crease/interior hinges. Dynamic exposed patches share aerodynamic area between coincident panels. Unilateral contact and pressure-limited friction replace rigid attachments by default, allowing sliding and separation. Every material layer contributes its own directional stiffness; the old bonded multiplier is retained only in the explicit comparison mode. Contact preserves zero-thickness recipe geometry and does not resolve general finite-thickness self-collision. See [the compiler model](docs/folded-flight.md).
 
 Explore flight keeps playback, the timeline and camera controls in a compact bottom bar. Open **Inspect** for flex, layers and balance markers; closing the panel leaves enabled overlays visible. The **•••** menu contains takeoff, landing and the score card.
 
@@ -190,7 +135,7 @@ In **Inspect**, **Flex arrows** shows displacement relative to the undeformed pl
 
 ## Special materials and weather
 
-The whole purple Special tile opens an illustrated picker for tissue paper, kitchen foil and steel plate, with keyboard navigation and a regular-paper option. Selecting an ordinary paper weight returns to paper. These are playful **effective presets**, not measured constitutive laws: tissue uses 18 gsm and soft bending/creases, foil uses 135 gsm with stiffer panels and softer creases, and nominal 1 mm steel uses 7850 gsm with much greater bending/crease stiffness. The same folded material areas set their masses. All materials share the same launch-speed range; mass and stiffness still affect the flight after release. Tissue is slightly translucent in the workbench, flight and replay, with overlapping layers appearing denser. Metal presets also change the rendered surface. The workbench still folds kinematically; it does not model the work or permanent deformation needed to fold steel.
+The whole purple Special tile opens an illustrated picker for tissue paper, kitchen foil and steel plate, with keyboard navigation and a regular-paper option. Selecting an ordinary paper weight returns to paper. These use explicit nominal sheet properties: tissue is 18 gsm at 60 µm, foil 135 gsm at 50 µm, and steel 7850 gsm at 1 mm. Paper/tissue have directional elastic stiffness; metals use isotropic moduli. Thickness, density and elasticity set mechanics, while effective crease parameters allow permanent bending. These are illustrative presets, not measured products. Material areas set mass. All materials share the same 0–11 m/s launch-speed range; mass and stiffness still affect flight after release. Tissue is slightly translucent in folding, flight and replay, with overlapping layers appearing denser. Metal presets also change the rendered surface. Workbench folds remain kinematic; they do not model the work or tooling needed to fold steel.
 
 The Weather button at the launcher opens still air, breeze (1.5 m/s) and blustery (3 m/s) choices. The direction means **where air blows toward**, with up on the compass meaning downfield (+X). Gusts add smooth intermittent bursts up to 1.5 m/s; turbulence adds a deterministic, spatially varying divergence-free swirl field, including vertical motion. The on-field indicator displays local air speed and horizontal direction; the windsock samples the field at its own position. These controls prescribe air velocity rather than solve a fluid or account for tree wakes. Settings stay fixed during a throw, and replay lift analysis evaluates the same air field at the replayed position and time.
 

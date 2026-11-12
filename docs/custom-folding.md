@@ -1,6 +1,6 @@
 # Custom folding: representation study and implementation route
 
-The existing workbench changes an effective dart mesh. It cannot preserve the identity of a sheet through arbitrary folding, distinguish coincident layers, or describe a locking flap. The new sheet model in `src/folding/` now compiles the supported recipes into a flight mesh using the [effective laminate bridge](folded-flight.md). A future custom editor should author this same model. Changing `createDart` parameters is not sufficient.
+The existing workbench changes an effective dart mesh. It cannot preserve the identity of a sheet through arbitrary folding, distinguish coincident layers, or describe a locking flap. The new sheet model in `src/folding/` now compiles the supported recipes into a flight mesh using the [flexible flight bridge](folded-flight.md). A future custom editor should author this same model. Changing `createDart` parameters is not sufficient.
 
 ## Executable proof
 
@@ -20,7 +20,7 @@ All three sequences preserve area, rigid-panel distances, material seam continui
 
 ## The data model
 
-- **Sheet:** original outline, dimensions, paper mass per area; material thickness and constitutive parameters belong here in the eventual flight compiler.
+- **Sheet:** original outline, dimensions, paper mass per area; the flight solver derives thickness from grammage/density and uses explicit directional elastic and crease properties.
 - **Panel:** a polygon whose vertices retain both original 2D sheet coordinates and current 3D coordinates. Splitting a panel interpolates both coordinate sets. Material area, rather than projected area, determines mass.
 - **Operation:** a crease axis, a moving half-plane, signed rotation, and explicit layer selection. Panel lineage tags survive splits, so the nose flap can be selected after other folds create additional facets.
 - **History:** an ordered recipe replayed from the original sheet. The prototype's undo recomputes a prefix of that recipe. A future edit can invalidate later references and must report that rather than quietly choosing different panels.
@@ -49,7 +49,7 @@ Start with straight creases and supported planar-layer selections. Do not initia
 
 A geometrically folded sheet cannot safely be passed straight to the present aerodynamic loop: every overlapping triangle would receive airflow forces, multiplying the effective lifting area.
 
-For a fully physical custom-design bridge, the remaining requirements are below. The current experimental bridge implements material-mass triangulation, crease constraints, and approximate overlap shielding; it substitutes laminate attachments for full contact:
+For a fully physical custom-design bridge, the remaining requirements are below. The current bridge implements material-mass triangulation, directional membrane/hinge constraints, plastic crease offsets, dynamic exposure and a coupled spanwise aerodynamic model. Contact is restricted to initially coplanar groups, with zero-clearance midsurfaces; general collision detection and stacking order remain open:
 
 1. Triangulate conformed panels, preserving real crease edges separately from numerical subdivision edges. Carry original material area into vertex masses.
 2. Build the deployed rest shape and hinge constraints from the recipe; retain folded-layer membership, thickness and local stiffness rather than replacing everything with one stiffness multiplier.
@@ -57,7 +57,7 @@ For a fully physical custom-design bridge, the remaining requirements are below.
 4. Determine exposed aerodynamic surfaces and shielding. Avoid applying full aerodynamic loads independently to every hidden layer. Keep force/torque transfer back to material mass conservative.
 5. Verify static shape and mass distribution, then benchmark the three reference designs against real folds and throws. Published distances are comparison context, not solver calibration targets on their own.
 
-The game retains Original dart and also offers all three compiled studies. The study now has a Fly this design button once the wings are deployed. These designs use the documented effective laminate approximation, not full layer contact.
+The game retains Original dart and also offers all three compiled studies. The study now has a Fly this design button once the wings are deployed. These designs use the documented restricted sliding-contact and exposed-surface model. The old bonded laminate remains an explicit benchmark option; full finite-thickness self-contact is still absent.
 
 ## Next reference after the three no-cut designs
 
