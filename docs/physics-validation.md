@@ -4,11 +4,15 @@ Measured locally on 2026-11-12 with Node v26.12.1. Reproduce with `npm test`, `n
 
 ## Automated checks
 
-**73 tests pass**, up from 54 at checkpoint `2f9fef8`; TypeScript checking and the production Vite build pass. Existing acceptance bounds were retained. The old layer-coupling comparison now explicitly uses `layerModel: 'bonded'`, because default sliding contact intentionally does not apply bonded stiffness multipliers.
+**77 tests pass** after rebasing onto `main` at `411a45b`, up from 54 at checkpoint `2f9fef8`; TypeScript checking and the production Vite build pass. Existing acceptance bounds were retained. The old layer-coupling comparison now explicitly uses `layerModel: 'bonded'`, because default sliding contact intentionally does not apply bonded stiffness multipliers.
 
 New coverage includes force and three-axis moment transfer, rigid/Galilean/winding invariance, untouched-wing response to opposite-wing deformation, wingtip unloading, aspect-ratio response, elliptic-wing convergence, reverse/high-angle/tumbling dissipation, dynamic exposure during peeling, contact side/triangle transitions, free separation, friction limits, internal momentum balance, directional material scaling, grain coordinates through refinement, membrane shear, permanent crease set/reversal/reset and replay re-evaluation. Existing tests still exercise complete flights, wind, all special materials on all four designs, unrestricted pitch, mass, launcher energy and kinematic fold geometry.
 
 The high-angle small Stable still needs the numerical strain envelope; residual strain on tiny triangles can exceed its nominal ±2% target with finite sweeps. The model has no tearing and these launches are not evidence that a real sheet would remain intact.
+
+## Rebase integration checks
+
+The rebased branch retains the independent 0–11 m/s launcher, release-height control, translucent tissue, illustrated material picker, shadows, non-overlapping runway, fixed-width Folded Dart controls and compact replay tools. All twelve special-material/design combinations passed full-speed 11 m/s gusty-crosswind launches. Browser checks on port 5174 verified an 11 m/s launch using the coupled/contact defaults, replay lift values against recomputed coupled panel loads, scrubbing/playback, corner-meter dismissal, mobile layout, model switching and Flat/Shallow/Steep controls. The build passes. The numerical benchmark tables below remain the original physics-branch measurements; the rebase did not change their solver settings.
 
 ## Aerodynamic convergence
 
