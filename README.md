@@ -53,7 +53,7 @@ Technical notes and findings live in [`docs/`](docs/):
 - [Physics tests and results](docs/physics-validation.md)
 - [Performance report](docs/performance.md)
 - [Plane library and downloads](docs/plane-library.md)
-- [Folding study](docs/custom-folding.md) — also available from the game's help dialog
+- [Folding model and limits](docs/custom-folding.md)
 
 ## License and credits
 
