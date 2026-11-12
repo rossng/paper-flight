@@ -1,0 +1,907 @@
+{
+  "context": {
+    "date": "2026-11-12T20:23:33.649Z",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/157.0.8103.78",
+      "revision": "@4b3d0dabb8250b6f152d2d85d79e7706e309d087",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "jsVersion": "15.7.112.43"
+    },
+    "viewport": "1280x800 DPR1",
+    "url": "http://127.0.0.1:5197/",
+    "warmup": "1 complete warm-up flight(s), then 2 measured complete flights per case; a fresh worker per launch",
+    "note": "Headless Chrome; rAF/JS and long tasks, not physical display presentation or GPU timings."
+  },
+  "cases": [
+    {
+      "name": "legacy-paper",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 2.110416666666659,
+            "center": [
+              4.6957433171849425,
+              0.10211662452967447,
+              0.22532666707274507
+            ],
+            "peakDeformation": 0.017069309020007358
+          },
+          "worker": {
+            "created": 4435.099999904633,
+            "terminated": true,
+            "time": 2.110416666666659,
+            "status": "landed",
+            "requests": 115,
+            "targets": 113,
+            "lastTarget": 2.116566666666667,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 7.15,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 11.8,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 80,
+              "stiffness": 1,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                0,
+                0,
+                0
+              ],
+              "windHeading": 0,
+              "gusts": 0,
+              "turbulence": 0,
+              "material": "paper",
+              "aero": true
+            },
+            "workMs": 1271.1000002622604
+          },
+          "frames": 130,
+          "frameMs": {
+            "count": 130,
+            "median": 0.5999999046325684,
+            "p95": 1,
+            "max": 2.700000047683716
+          },
+          "intervalMs": {
+            "count": 130,
+            "median": 16.699999999999818,
+            "p95": 16.800000000000182,
+            "max": 16.800000000000182
+          },
+          "physicsMs": {
+            "count": 130,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 130,
+            "median": 0.5,
+            "p95": 1,
+            "max": 2.3000000715255737
+          },
+          "recordMs": {
+            "count": 130,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 130,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 130,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 130,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.9740684328748545
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 2.110416666666659,
+            "center": [
+              4.6957433171849425,
+              0.10211662452967447,
+              0.22532666707274507
+            ],
+            "peakDeformation": 0.017069309020007358
+          },
+          "worker": {
+            "created": 6936.299999952316,
+            "terminated": true,
+            "time": 2.110416666666659,
+            "status": "landed",
+            "requests": 116,
+            "targets": 114,
+            "lastTarget": 2.124900000000002,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 7.15,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 11.8,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 80,
+              "stiffness": 1,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                0,
+                0,
+                0
+              ],
+              "windHeading": 0,
+              "gusts": 0,
+              "turbulence": 0,
+              "material": "paper",
+              "aero": true
+            },
+            "workMs": 1261.3000016212463
+          },
+          "frames": 131,
+          "frameMs": {
+            "count": 131,
+            "median": 0.5,
+            "p95": 1.5,
+            "max": 3.5
+          },
+          "intervalMs": {
+            "count": 131,
+            "median": 16.699999999999818,
+            "p95": 16.799999999999272,
+            "max": 16.80000000000109
+          },
+          "physicsMs": {
+            "count": 131,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 131,
+            "median": 0.5,
+            "p95": 1.2000000476837158,
+            "max": 3.0999999046325684
+          },
+          "recordMs": {
+            "count": 131,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 131,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 131,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 131,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.9666178109589424
+        }
+      ],
+      "replay": {
+        "clock": "1.57 / 2.11 s",
+        "flex": "Flex RMS 8.64 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.036 N",
+        "stall": "24%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "dart-paper",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.072222222222219,
+            "center": [
+              5.132149316951581,
+              0.10007275225637331,
+              -0.1217658089781925
+            ],
+            "peakDeformation": 0.004773360420553019
+          },
+          "worker": {
+            "created": 15168.799999952316,
+            "terminated": true,
+            "time": 1.072222222222219,
+            "status": "landed",
+            "requests": 218,
+            "targets": 216,
+            "lastTarget": 1.3194444444444413,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 7.15,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 11.8,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 80,
+              "stiffness": 1,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                0,
+                0,
+                0
+              ],
+              "windHeading": 0,
+              "gusts": 0,
+              "turbulence": 0,
+              "material": "paper",
+              "aero": true
+            },
+            "workMs": 3941.6999995708466
+          },
+          "frames": 243,
+          "frameMs": {
+            "count": 243,
+            "median": 0.6000000238418579,
+            "p95": 0.8999999761581421,
+            "max": 1.100000023841858
+          },
+          "intervalMs": {
+            "count": 243,
+            "median": 16.69999999999891,
+            "p95": 16.700000000000728,
+            "max": 33.29999999999927
+          },
+          "physicsMs": {
+            "count": 243,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 243,
+            "median": 0.5,
+            "p95": 0.7000000476837158,
+            "max": 0.9000000953674316
+          },
+          "recordMs": {
+            "count": 243,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 243,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 243,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 243,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.2636720084156448
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.072222222222219,
+            "center": [
+              5.132149316951581,
+              0.10007275225637331,
+              -0.1217658089781925
+            ],
+            "peakDeformation": 0.004773360420553019
+          },
+          "worker": {
+            "created": 19490.199999928474,
+            "terminated": true,
+            "time": 1.072222222222219,
+            "status": "landed",
+            "requests": 213,
+            "targets": 211,
+            "lastTarget": 1.3166666666666635,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 7.15,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 11.8,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 80,
+              "stiffness": 1,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                0,
+                0,
+                0
+              ],
+              "windHeading": 0,
+              "gusts": 0,
+              "turbulence": 0,
+              "material": "paper",
+              "aero": true
+            },
+            "workMs": 3965.2000008821487
+          },
+          "frames": 244,
+          "frameMs": {
+            "count": 244,
+            "median": 0.6000000238418579,
+            "p95": 0.8999999761581421,
+            "max": 1.100000023841858
+          },
+          "intervalMs": {
+            "count": 244,
+            "median": 16.700000000000728,
+            "p95": 16.700000000000728,
+            "max": 16.80000000000291
+          },
+          "physicsMs": {
+            "count": 244,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 244,
+            "median": 0.5999999046325684,
+            "p95": 0.7000000476837158,
+            "max": 0.9000000953674316
+          },
+          "recordMs": {
+            "count": 244,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 244,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 244,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 244,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.2636720084156447
+        }
+      ],
+      "replay": {
+        "clock": "1.05 / 1.07 s",
+        "flex": "Flex RMS 1.20 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.018 N",
+        "stall": "32%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "legacy-tissue",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 6.391666666666007,
+            "center": [
+              3.8889542927377123,
+              0.02377080773729048,
+              17.145638258396048
+            ],
+            "peakDeformation": 0.013129271257403879
+          },
+          "worker": {
+            "created": 35898,
+            "terminated": true,
+            "time": 6.391666666666007,
+            "status": "landed",
+            "requests": 626,
+            "targets": 624,
+            "lastTarget": 6.635185185184526,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 11,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 16,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 18,
+              "stiffness": 0.16000968597063617,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                1.8369701987210297e-16,
+                0,
+                3
+              ],
+              "windHeading": 90,
+              "gusts": 1.5,
+              "turbulence": 1,
+              "material": "tissue",
+              "aero": true
+            },
+            "workMs": 10291.599999427795
+          },
+          "frames": 627,
+          "frameMs": {
+            "count": 627,
+            "median": 0.3999999761581421,
+            "p95": 0.6999999284744263,
+            "max": 1
+          },
+          "intervalMs": {
+            "count": 627,
+            "median": 16.69999999999709,
+            "p95": 16.700000000004366,
+            "max": 16.80000000000291
+          },
+          "physicsMs": {
+            "count": 627,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 627,
+            "median": 0.3999999761581421,
+            "p95": 0.6000000238418579,
+            "max": 0.8000000715255737
+          },
+          "recordMs": {
+            "count": 627,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 627,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.19999992847442627
+          },
+          "deformationMs": {
+            "count": 627,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.19999992847442627
+          },
+          "steps": {
+            "count": 627,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.6116603028475462
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 6.391666666666007,
+            "center": [
+              3.8889542927377123,
+              0.02377080773729048,
+              17.145638258396048
+            ],
+            "peakDeformation": 0.013129271257403879
+          },
+          "worker": {
+            "created": 46699.299999952316,
+            "terminated": true,
+            "time": 6.391666666666007,
+            "status": "landed",
+            "requests": 641,
+            "targets": 639,
+            "lastTarget": 6.633333333332675,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 11,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 16,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 18,
+              "stiffness": 0.16000968597063617,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                1.8369701987210297e-16,
+                0,
+                3
+              ],
+              "windHeading": 90,
+              "gusts": 1.5,
+              "turbulence": 1,
+              "material": "tissue",
+              "aero": true
+            },
+            "workMs": 10492.500001072884
+          },
+          "frames": 642,
+          "frameMs": {
+            "count": 642,
+            "median": 0.3999999761581421,
+            "p95": 0.6999999284744263,
+            "max": 0.9000000953674316
+          },
+          "intervalMs": {
+            "count": 642,
+            "median": 16.69999999999709,
+            "p95": 16.700000000004366,
+            "max": 16.80000000000291
+          },
+          "physicsMs": {
+            "count": 642,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 642,
+            "median": 0.3999999761581421,
+            "p95": 0.5999999046325684,
+            "max": 0.7000000476837158
+          },
+          "recordMs": {
+            "count": 642,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 642,
+            "median": 0,
+            "p95": 0.09999990463256836,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 642,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 642,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.597379939872518
+        }
+      ],
+      "replay": {
+        "clock": "3.70 / 6.39 s",
+        "flex": "Flex RMS 5.22 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.0085 N",
+        "stall": "42%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "dart-tissue",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.337037037037044,
+            "center": [
+              3.7475241876451766,
+              0.09709197990988919,
+              3.598200790529197
+            ],
+            "peakDeformation": 0.006578140637084587
+          },
+          "worker": {
+            "created": 75026.09999990463,
+            "terminated": true,
+            "time": 1.337037037037044,
+            "status": "landed",
+            "requests": 809,
+            "targets": 807,
+            "lastTarget": 1.585185185185192,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 11,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 16,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 18,
+              "stiffness": 0.16000968597063617,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                1.8369701987210297e-16,
+                0,
+                3
+              ],
+              "windHeading": 90,
+              "gusts": 1.5,
+              "turbulence": 1,
+              "material": "tissue",
+              "aero": true
+            },
+            "workMs": 15242.999998807907
+          },
+          "frames": 929,
+          "frameMs": {
+            "count": 929,
+            "median": 0.5,
+            "p95": 0.8000000715255737,
+            "max": 1.100000023841858
+          },
+          "intervalMs": {
+            "count": 929,
+            "median": 16.69999999999709,
+            "p95": 16.70000000001164,
+            "max": 16.80000000000291
+          },
+          "physicsMs": {
+            "count": 929,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 929,
+            "median": 0.5,
+            "p95": 0.6999999284744263,
+            "max": 0.8000000715255737
+          },
+          "recordMs": {
+            "count": 929,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 929,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 929,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 929,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.08635739714499138
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.337037037037044,
+            "center": [
+              3.7475241876451766,
+              0.09709197990988919,
+              3.598200790529197
+            ],
+            "peakDeformation": 0.006578140637084587
+          },
+          "worker": {
+            "created": 90806,
+            "terminated": true,
+            "time": 1.337037037037044,
+            "status": "landed",
+            "requests": 810,
+            "targets": 808,
+            "lastTarget": 1.584259259259266,
+            "launch": {
+              "aeroModel": "coupled",
+              "layerModel": "contact",
+              "aeroStations": 12,
+              "substeps": 0,
+              "iterations": 24,
+              "speed": 11,
+              "pitch": 15,
+              "heading": 0,
+              "elevation": 16,
+              "span": 1,
+              "size": 1,
+              "paperWeight": 18,
+              "stiffness": 0.16000968597063617,
+              "crease": 1,
+              "dihedral": 8,
+              "height": 1.8,
+              "gravity": 9.81,
+              "density": 1.225,
+              "wind": [
+                1.8369701987210297e-16,
+                0,
+                3
+              ],
+              "windHeading": 90,
+              "gusts": 1.5,
+              "turbulence": 1,
+              "material": "tissue",
+              "aero": true
+            },
+            "workMs": 15470.400002002716
+          },
+          "frames": 941,
+          "frameMs": {
+            "count": 941,
+            "median": 0.5,
+            "p95": 0.8000000715255737,
+            "max": 1.100000023841858
+          },
+          "intervalMs": {
+            "count": 941,
+            "median": 16.69999999999709,
+            "p95": 16.79999999998836,
+            "max": 16.80000000000291
+          },
+          "physicsMs": {
+            "count": 941,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "renderMs": {
+            "count": 941,
+            "median": 0.5,
+            "p95": 0.7000000476837158,
+            "max": 0.8000000715255737
+          },
+          "recordMs": {
+            "count": 941,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "metricsMs": {
+            "count": 941,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 941,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.10000002384185791
+          },
+          "steps": {
+            "count": 941,
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.0852555387169967
+        }
+      ],
+      "replay": {
+        "clock": "1.17 / 1.34 s",
+        "flex": "Flex RMS 1.85 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.0091 N",
+        "stall": "33%"
+      },
+      "pauseResumeReset": true
+    }
+  ],
+  "errors": []
+}

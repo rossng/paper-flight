@@ -1,0 +1,1427 @@
+{
+  "context": {
+    "date": "2026-11-12T20:12:54.687Z",
+    "source": "/private/tmp/physics-performance-selfcollision-base",
+    "sources": [
+      "/private/tmp/physics-performance-selfcollision-base",
+      "/Users/ross/.supacode/repos/paper-flight/physics-performance"
+    ],
+    "order": "alternating baseline/candidate within each repeat, serial",
+    "baseline": "26bd729",
+    "revision": "26bd7298c4d187aed9e476ddc745b49ff6fc6082",
+    "node": "v26.12.1",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCPUs": 10,
+    "memoryBytes": 25769803776,
+    "loadBefore": [
+      3.0615234375,
+      2.498046875,
+      2.93798828125
+    ],
+    "runs": 5,
+    "steps": 48,
+    "warmups": 2,
+    "workers": 1,
+    "loadAfter": [
+      3.337890625,
+      2.86376953125,
+      2.9912109375
+    ]
+  },
+  "cases": [
+    {
+      "name": "legacy-paper",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 89,
+      "faces": 150,
+      "hinges": 212,
+      "edges": 238,
+      "patches": 264,
+      "candidates": 0,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999992,
+      "status": "flying",
+      "stepMs": {
+        "median": 2.5793750000000273,
+        "p95": 3.9388750000000528,
+        "max": 5.095000000000027,
+        "mean": 2.9133819375000005
+      },
+      "runMs": [
+        135.6387099999996,
+        148.73545300000023,
+        133.17475100000024,
+        148.32270800000038,
+        133.3400429999997
+      ],
+      "runStatsMs": {
+        "median": 135.6387099999996,
+        "p95": 148.73545300000023,
+        "max": 148.73545300000023,
+        "mean": 139.84233300000002
+      },
+      "realTimeRatio": 2.949010647476671,
+      "substeps": {
+        "median": 3,
+        "p95": 4,
+        "max": 4,
+        "mean": 3.4791666666666665
+      },
+      "metricsMs": {
+        "median": 0.024249999999938154,
+        "p95": 0.04716699999994489,
+        "max": 0.0655410000001666,
+        "mean": 0.02800035416666873
+      },
+      "deformationMs": {
+        "median": 0.00458400000002257,
+        "p95": 0.022416999999904874,
+        "max": 0.028874999999970896,
+        "mean": 0.007202591666672712
+      },
+      "recordingMs": {
+        "median": 0.0017080000000078144,
+        "p95": 0.006416999999942163,
+        "max": 0.019541000000117492,
+        "mean": 0.0022966916666670536
+      }
+    },
+    {
+      "name": "legacy-paper",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 89,
+      "faces": 150,
+      "hinges": 212,
+      "edges": 238,
+      "patches": 264,
+      "candidates": 0,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999992,
+      "status": "flying",
+      "stepMs": {
+        "median": 2.6387919999999667,
+        "p95": 3.6500409999998737,
+        "max": 4.495249999999942,
+        "mean": 2.840755883333335
+      },
+      "runMs": [
+        141.68983400000013,
+        136.19349699999998,
+        132.35895699999992,
+        133.86662500000057,
+        137.6724989999998
+      ],
+      "runStatsMs": {
+        "median": 136.19349699999998,
+        "p95": 141.68983400000013,
+        "max": 141.68983400000013,
+        "mean": 136.35628240000008
+      },
+      "realTimeRatio": 2.9369977921926718,
+      "substeps": {
+        "median": 3,
+        "p95": 4,
+        "max": 4,
+        "mean": 3.4791666666666665
+      },
+      "metricsMs": {
+        "median": 0.023791000000073836,
+        "p95": 0.04558299999996507,
+        "max": 0.05979100000001836,
+        "mean": 0.027986791666671233
+      },
+      "deformationMs": {
+        "median": 0.004750000000058208,
+        "p95": 0.022084000000063497,
+        "max": 0.028790999999955602,
+        "mean": 0.007322745833333973
+      },
+      "recordingMs": {
+        "median": 0.001708000000235188,
+        "p95": 0.003582999999935055,
+        "max": 0.01820899999984249,
+        "mean": 0.0021873416666532346
+      }
+    },
+    {
+      "name": "basic-paper",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 119,
+      "faces": 216,
+      "hinges": 314,
+      "edges": 334,
+      "patches": 478,
+      "candidates": 7162,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 9.172875000000204,
+        "p95": 11.29529199999979,
+        "max": 21.53070800000023,
+        "mean": 9.507050866666686
+      },
+      "runMs": [
+        442.03182800000377,
+        459.3426669999999,
+        463.0357960000001,
+        465.96050000000196,
+        451.3214169999992
+      ],
+      "runStatsMs": {
+        "median": 459.3426669999999,
+        "p95": 465.96050000000196,
+        "max": 465.96050000000196,
+        "mean": 456.338441600001
+      },
+      "realTimeRatio": 0.8708095910454562,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.04287500000009459,
+        "p95": 0.07508400000006077,
+        "max": 0.19958299999962037,
+        "mean": 0.04784825000001168
+      },
+      "deformationMs": {
+        "median": 0.009334000000308151,
+        "p95": 0.035125000000334694,
+        "max": 0.041916000000128406,
+        "mean": 0.012139454166685937
+      },
+      "recordingMs": {
+        "median": 0.0037919999995210674,
+        "p95": 0.009167000000161352,
+        "max": 0.027000000000043656,
+        "mean": 0.004587875000015629
+      }
+    },
+    {
+      "name": "basic-paper",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 119,
+      "faces": 216,
+      "hinges": 314,
+      "edges": 334,
+      "patches": 478,
+      "candidates": 7162,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 9.12341699999979,
+        "p95": 11.58612499999981,
+        "max": 21.267832999999882,
+        "mean": 9.453912691666654
+      },
+      "runMs": [
+        450.72754500000246,
+        453.372832,
+        458.61195999999927,
+        451.5491230000007,
+        454.67758599999433
+      ],
+      "runStatsMs": {
+        "median": 453.372832,
+        "p95": 458.61195999999927,
+        "max": 458.61195999999927,
+        "mean": 453.78780919999934
+      },
+      "realTimeRatio": 0.8822760689815641,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.04204100000060862,
+        "p95": 0.09124999999949068,
+        "max": 0.22837499999968713,
+        "mean": 0.048365816666679017
+      },
+      "deformationMs": {
+        "median": 0.01133300000037707,
+        "p95": 0.034374999999272404,
+        "max": 0.2452499999999418,
+        "mean": 0.013894804166701155
+      },
+      "recordingMs": {
+        "median": 0.003875000000334694,
+        "p95": 0.007209000000329979,
+        "max": 0.021999999999934516,
+        "mean": 0.0043868374999609236
+      }
+    },
+    {
+      "name": "dart-paper",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 193,
+      "faces": 360,
+      "hinges": 528,
+      "edges": 552,
+      "patches": 646,
+      "candidates": 26128,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 31.02662500000224,
+        "p95": 34.19279199999801,
+        "max": 46.354167000001326,
+        "mean": 31.18129377916664
+      },
+      "runMs": [
+        1502.5579179999968,
+        1516.3438800000113,
+        1479.1219180000044,
+        1507.9118769999914,
+        1477.5749139999898
+      ],
+      "runStatsMs": {
+        "median": 1502.5579179999968,
+        "p95": 1516.3438800000113,
+        "max": 1516.3438800000113,
+        "mean": 1496.7021013999988
+      },
+      "realTimeRatio": 0.26621269982885276,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.06770800000231247,
+        "p95": 0.08445899999787798,
+        "max": 0.26420800000050804,
+        "mean": 0.07083158750003804
+      },
+      "deformationMs": {
+        "median": 0.014708999999129446,
+        "p95": 0.01858399999764515,
+        "max": 0.17687499999919964,
+        "mean": 0.018274966666528294
+      },
+      "recordingMs": {
+        "median": 0.007583999999042135,
+        "p95": 0.011207999999896856,
+        "max": 0.041124999999738066,
+        "mean": 0.008404858333468232
+      }
+    },
+    {
+      "name": "dart-paper",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 193,
+      "faces": 360,
+      "hinges": 528,
+      "edges": 552,
+      "patches": 646,
+      "candidates": 26128,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 30.164875000002212,
+        "p95": 34.787208999998256,
+        "max": 45.486125000003085,
+        "mean": 30.76981252916659
+      },
+      "runMs": [
+        1485.0126689999888,
+        1463.4158739999875,
+        1482.3748360000027,
+        1468.3452120000002,
+        1485.6064160000024
+      ],
+      "runStatsMs": {
+        "median": 1482.3748360000027,
+        "p95": 1485.6064160000024,
+        "max": 1485.6064160000024,
+        "mean": 1476.9510013999964
+      },
+      "realTimeRatio": 0.2698372842589176,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.06725000000005821,
+        "p95": 0.10991700000158744,
+        "max": 0.29379100000005565,
+        "mean": 0.07397068333349731
+      },
+      "deformationMs": {
+        "median": 0.017542000001412816,
+        "p95": 0.054707999999664025,
+        "max": 0.1476250000014261,
+        "mean": 0.021300683333280782
+      },
+      "recordingMs": {
+        "median": 0.007291999998415122,
+        "p95": 0.01074999999764259,
+        "max": 0.012500000000727596,
+        "mean": 0.0077446499999041405
+      }
+    },
+    {
+      "name": "stable-paper",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 108,
+      "faces": 186,
+      "hinges": 265,
+      "edges": 293,
+      "patches": 367,
+      "candidates": 9620,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 18.762375000005704,
+        "p95": 20.146832999998878,
+        "max": 30.332540999996127,
+        "mean": 18.673416320833653
+      },
+      "runMs": [
+        886.5358780000461,
+        902.9756649999981,
+        880.8245830000014,
+        923.0343760000105,
+        888.2494150000202
+      ],
+      "runStatsMs": {
+        "median": 888.2494150000202,
+        "p95": 923.0343760000105,
+        "max": 923.0343760000105,
+        "mean": 896.3239834000153
+      },
+      "realTimeRatio": 0.4503239667205297,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.03462500000023283,
+        "p95": 0.06741599999804748,
+        "max": 0.0730829999956768,
+        "mean": 0.03855537500000234
+      },
+      "deformationMs": {
+        "median": 0.008374999997613486,
+        "p95": 0.0319999999992433,
+        "max": 0.03516700000182027,
+        "mean": 0.01149914583335582
+      },
+      "recordingMs": {
+        "median": 0.004709000000730157,
+        "p95": 0.0076249999983701855,
+        "max": 0.01729199999681441,
+        "mean": 0.005160625000159295
+      }
+    },
+    {
+      "name": "stable-paper",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 6,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 80,
+        "stiffness": 1,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "windHeading": 0,
+        "gusts": 0,
+        "turbulence": 0,
+        "material": "paper",
+        "aero": true
+      },
+      "vertices": 108,
+      "faces": 186,
+      "hinges": 265,
+      "edges": 293,
+      "patches": 367,
+      "candidates": 9620,
+      "iterations": 24,
+      "simulatedSeconds": 0.3999999999999991,
+      "status": "flying",
+      "stepMs": {
+        "median": 18.53137499999866,
+        "p95": 21.09475000000384,
+        "max": 29.71774999999616,
+        "mean": 18.47375470416679
+      },
+      "runMs": [
+        893.6980040000126,
+        878.2672919999968,
+        884.346917000039,
+        870.1434160000063,
+        907.2454999999754
+      ],
+      "runStatsMs": {
+        "median": 884.346917000039,
+        "p95": 907.2454999999754,
+        "max": 907.2454999999754,
+        "mean": 886.740225800006
+      },
+      "realTimeRatio": 0.45231118276175486,
+      "substeps": {
+        "median": 3,
+        "p95": 3,
+        "max": 4,
+        "mean": 3.0208333333333335
+      },
+      "metricsMs": {
+        "median": 0.0357499999954598,
+        "p95": 0.05920899999910034,
+        "max": 0.1647919999959413,
+        "mean": 0.038778808333487784
+      },
+      "deformationMs": {
+        "median": 0.010167000000365078,
+        "p95": 0.03204199999890989,
+        "max": 0.10516700000152923,
+        "mean": 0.011282312499800658
+      },
+      "recordingMs": {
+        "median": 0.0048749999987194315,
+        "p95": 0.007665999997698236,
+        "max": 0.019625000000814907,
+        "mean": 0.005309524999817464
+      }
+    },
+    {
+      "name": "legacy-tissue",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 89,
+      "faces": 150,
+      "hinges": 212,
+      "edges": 238,
+      "patches": 264,
+      "candidates": 0,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000185,
+      "status": "flying",
+      "stepMs": {
+        "median": 14.307749999999942,
+        "p95": 36.030750000005355,
+        "max": 44.8112919999985,
+        "mean": 17.647359912500118
+      },
+      "runMs": [
+        842.090707999967,
+        856.8607940000438,
+        839.8980410000149,
+        854.4367079999865,
+        842.080128000016
+      ],
+      "runStatsMs": {
+        "median": 842.090707999967,
+        "p95": 856.8607940000438,
+        "max": 856.8607940000438,
+        "mean": 847.0732758000056
+      },
+      "realTimeRatio": 0.47500821016067735,
+      "substeps": {
+        "median": 11,
+        "p95": 27,
+        "max": 32,
+        "mean": 13.541666666666666
+      },
+      "metricsMs": {
+        "median": 0.028625000006286427,
+        "p95": 0.03541699999914272,
+        "max": 0.12562500000058208,
+        "mean": 0.030813362500308965
+      },
+      "deformationMs": {
+        "median": 0.006792000000132248,
+        "p95": 0.008542000003217254,
+        "max": 0.03337499999906868,
+        "mean": 0.007401070832869058
+      },
+      "recordingMs": {
+        "median": 0.002958999997645151,
+        "p95": 0.006166999999550171,
+        "max": 0.016833000001497567,
+        "mean": 0.003489591666796817
+      }
+    },
+    {
+      "name": "legacy-tissue",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 89,
+      "faces": 150,
+      "hinges": 212,
+      "edges": 238,
+      "patches": 264,
+      "candidates": 0,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000185,
+      "status": "flying",
+      "stepMs": {
+        "median": 14.134416999993846,
+        "p95": 36.0926249999975,
+        "max": 42.54291699999885,
+        "mean": 17.74053525416642
+      },
+      "runMs": [
+        837.549125999969,
+        854.9234979999965,
+        845.3259980000003,
+        876.6375010000193,
+        843.2923379999556
+      ],
+      "runStatsMs": {
+        "median": 845.3259980000003,
+        "p95": 876.6375010000193,
+        "max": 876.6375010000193,
+        "mean": 851.5456921999881
+      },
+      "realTimeRatio": 0.47319022595588234,
+      "substeps": {
+        "median": 11,
+        "p95": 27,
+        "max": 32,
+        "mean": 13.541666666666666
+      },
+      "metricsMs": {
+        "median": 0.030624999999417923,
+        "p95": 0.03899999999703141,
+        "max": 0.07341699999960838,
+        "mean": 0.031504662499931634
+      },
+      "deformationMs": {
+        "median": 0.008125000000291038,
+        "p95": 0.008834000000206288,
+        "max": 0.05991600000561448,
+        "mean": 0.008585562500047671
+      },
+      "recordingMs": {
+        "median": 0.003125000002910383,
+        "p95": 0.006415999996534083,
+        "max": 0.009541999999783002,
+        "mean": 0.0036059333332862783
+      }
+    },
+    {
+      "name": "dart-tissue",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 193,
+      "faces": 360,
+      "hinges": 528,
+      "edges": 552,
+      "patches": 646,
+      "candidates": 26128,
+      "iterations": 24,
+      "simulatedSeconds": 0.4000000000000016,
+      "status": "flying",
+      "stepMs": {
+        "median": 104.61670899999444,
+        "p95": 221.36387500001,
+        "max": 315.00554199999897,
+        "mean": 122.7788607374999
+      },
+      "runMs": [
+        5659.0503729998745,
+        6153.6431210000155,
+        5951.192415000056,
+        5772.669001999995,
+        5930.3716660000355
+      ],
+      "runStatsMs": {
+        "median": 5930.3716660000355,
+        "p95": 6153.6431210000155,
+        "max": 6153.6431210000155,
+        "mean": 5893.385315399995
+      },
+      "realTimeRatio": 0.06744939820437879,
+      "substeps": {
+        "median": 10,
+        "p95": 22,
+        "max": 25,
+        "mean": 12.041666666666666
+      },
+      "metricsMs": {
+        "median": 0.07429099999717437,
+        "p95": 0.12537500000325963,
+        "max": 0.25879199999326374,
+        "mean": 0.08204337916710452
+      },
+      "deformationMs": {
+        "median": 0.018292000007932074,
+        "p95": 0.05966699999407865,
+        "max": 0.18954200000735,
+        "mean": 0.0245408083329797
+      },
+      "recordingMs": {
+        "median": 0.010041000001365319,
+        "p95": 0.01341600000159815,
+        "max": 0.025750000000698492,
+        "mean": 0.010089945833594053
+      }
+    },
+    {
+      "name": "dart-tissue",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 193,
+      "faces": 360,
+      "hinges": 528,
+      "edges": 552,
+      "patches": 646,
+      "candidates": 26128,
+      "iterations": 24,
+      "simulatedSeconds": 0.4000000000000016,
+      "status": "flying",
+      "stepMs": {
+        "median": 103.11824999999953,
+        "p95": 203.15899999999965,
+        "max": 278.4985830000078,
+        "mean": 119.97653070416605
+      },
+      "runMs": [
+        5460.833702999982,
+        5771.23795999994,
+        5881.016749999952,
+        5799.4635040000285,
+        5881.815451999952
+      ],
+      "runStatsMs": {
+        "median": 5799.4635040000285,
+        "p95": 5881.815451999952,
+        "max": 5881.815451999952,
+        "mean": 5758.873473799971
+      },
+      "realTimeRatio": 0.06897189709429365,
+      "substeps": {
+        "median": 10,
+        "p95": 22,
+        "max": 25,
+        "mean": 12.041666666666666
+      },
+      "metricsMs": {
+        "median": 0.10345799999777228,
+        "p95": 0.13075000001117587,
+        "max": 0.32124999999359716,
+        "mean": 0.09773922083374297
+      },
+      "deformationMs": {
+        "median": 0.05295900000783149,
+        "p95": 0.06558400001085829,
+        "max": 0.23212499999499414,
+        "mean": 0.040489595833241764
+      },
+      "recordingMs": {
+        "median": 0.009957999995094724,
+        "p95": 0.013625000006868504,
+        "max": 0.01970900000014808,
+        "mean": 0.01009187916661176
+      }
+    },
+    {
+      "name": "basic-tissue",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 119,
+      "faces": 216,
+      "hinges": 314,
+      "edges": 334,
+      "patches": 478,
+      "candidates": 7162,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000074,
+      "status": "flying",
+      "stepMs": {
+        "median": 34.81245800000033,
+        "p95": 68.65420900000026,
+        "max": 116.51245899999049,
+        "mean": 39.94652029999961
+      },
+      "runMs": [
+        1856.303999999829,
+        1974.7734169999603,
+        2039.1768300000986,
+        1878.0135430000082,
+        1838.8970820000104
+      ],
+      "runStatsMs": {
+        "median": 1878.0135430000082,
+        "p95": 2039.1768300000986,
+        "max": 2039.1768300000986,
+        "mean": 1917.4329743999813
+      },
+      "realTimeRatio": 0.21299100929859427,
+      "substeps": {
+        "median": 9,
+        "p95": 20,
+        "max": 25,
+        "mean": 10.833333333333334
+      },
+      "metricsMs": {
+        "median": 0.04762499997741543,
+        "p95": 0.08137500000884756,
+        "max": 0.24554199998965487,
+        "mean": 0.052017349998762556
+      },
+      "deformationMs": {
+        "median": 0.012125000008381903,
+        "p95": 0.038874999998370185,
+        "max": 0.0710419999959413,
+        "mean": 0.014521204166764315
+      },
+      "recordingMs": {
+        "median": 0.007790999981807545,
+        "p95": 0.013042000005953014,
+        "max": 0.035957999993115664,
+        "mean": 0.008622549999320958
+      }
+    },
+    {
+      "name": "basic-tissue",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 119,
+      "faces": 216,
+      "hinges": 314,
+      "edges": 334,
+      "patches": 478,
+      "candidates": 7162,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000074,
+      "status": "flying",
+      "stepMs": {
+        "median": 34.732208000001265,
+        "p95": 71.11529200000223,
+        "max": 107.849790999986,
+        "mean": 40.67337640833418
+      },
+      "runMs": [
+        2045.5725030000613,
+        2040.4978330001468,
+        1969.6469579999975,
+        1851.150750000088,
+        1854.7422939999087
+      ],
+      "runStatsMs": {
+        "median": 1969.6469579999975,
+        "p95": 2045.5725030000613,
+        "max": 2045.5725030000613,
+        "mean": 1952.3220676000406
+      },
+      "realTimeRatio": 0.203082079443397,
+      "substeps": {
+        "median": 9,
+        "p95": 20,
+        "max": 25,
+        "mean": 10.833333333333334
+      },
+      "metricsMs": {
+        "median": 0.07341700000688434,
+        "p95": 0.08945800000219606,
+        "max": 0.19587500000488944,
+        "mean": 0.07012360416762628
+      },
+      "deformationMs": {
+        "median": 0.03737499998533167,
+        "p95": 0.04320800001733005,
+        "max": 0.18279099999926984,
+        "mean": 0.032352612499380484
+      },
+      "recordingMs": {
+        "median": 0.008375000004889444,
+        "p95": 0.01187499999650754,
+        "max": 0.014666000002762303,
+        "mean": 0.008428104166887352
+      }
+    },
+    {
+      "name": "stable-tissue",
+      "variant": "baseline",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 108,
+      "faces": 186,
+      "hinges": 265,
+      "edges": 293,
+      "patches": 367,
+      "candidates": 9620,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000074,
+      "status": "flying",
+      "stepMs": {
+        "median": 48.027791000000434,
+        "p95": 100.82679200000712,
+        "max": 155.48429100000067,
+        "mean": 54.576439408333194
+      },
+      "runMs": [
+        2546.163830000063,
+        2618.339498999965,
+        2627.263001000043,
+        2695.3695029999944,
+        2611.2096249999013
+      ],
+      "runStatsMs": {
+        "median": 2618.339498999965,
+        "p95": 2695.3695029999944,
+        "max": 2695.3695029999944,
+        "mean": 2619.6690915999934
+      },
+      "realTimeRatio": 0.15276857724247547,
+      "substeps": {
+        "median": 9,
+        "p95": 21,
+        "max": 25,
+        "mean": 10.625
+      },
+      "metricsMs": {
+        "median": 0.03954199998406693,
+        "p95": 0.06920899997930974,
+        "max": 0.28170899997348897,
+        "mean": 0.044925325000561615
+      },
+      "deformationMs": {
+        "median": 0.010959000006550923,
+        "p95": 0.03429199999663979,
+        "max": 0.1466659999859985,
+        "mean": 0.014627795833560716
+      },
+      "recordingMs": {
+        "median": 0.007458000007318333,
+        "p95": 0.01079199998639524,
+        "max": 0.9104999999981374,
+        "mean": 0.011439924999528254
+      }
+    },
+    {
+      "name": "stable-tissue",
+      "variant": "candidate",
+      "parameters": {
+        "aeroModel": "coupled",
+        "layerModel": "contact",
+        "aeroStations": 12,
+        "substeps": 0,
+        "iterations": 24,
+        "speed": 11,
+        "pitch": 8,
+        "heading": 0,
+        "elevation": 0,
+        "span": 1,
+        "size": 1,
+        "paperWeight": 18,
+        "stiffness": 0.16000968597063617,
+        "crease": 1,
+        "dihedral": 8,
+        "height": 1.8,
+        "gravity": 9.81,
+        "density": 1.225,
+        "wind": [
+          0,
+          0,
+          3
+        ],
+        "windHeading": 0,
+        "gusts": 1.5,
+        "turbulence": 1,
+        "material": "tissue",
+        "aero": true
+      },
+      "vertices": 108,
+      "faces": 186,
+      "hinges": 265,
+      "edges": 293,
+      "patches": 367,
+      "candidates": 9620,
+      "iterations": 24,
+      "simulatedSeconds": 0.40000000000000074,
+      "status": "flying",
+      "stepMs": {
+        "median": 46.87495800000033,
+        "p95": 96.90737500000978,
+        "max": 152.8770829999994,
+        "mean": 53.278295437499885
+      },
+      "runMs": [
+        2525.673078999942,
+        2531.9328289999103,
+        2606.068040000071,
+        2558.1220010000397,
+        2564.9949560000096
+      ],
+      "runStatsMs": {
+        "median": 2558.1220010000397,
+        "p95": 2606.068040000071,
+        "max": 2606.068040000071,
+        "mean": 2557.3581809999946
+      },
+      "realTimeRatio": 0.15636470811150907,
+      "substeps": {
+        "median": 9,
+        "p95": 21,
+        "max": 25,
+        "mean": 10.625
+      },
+      "metricsMs": {
+        "median": 0.03904199998942204,
+        "p95": 0.06833300000289455,
+        "max": 0.1417080000101123,
+        "mean": 0.043833483334310586
+      },
+      "deformationMs": {
+        "median": 0.011292000010143965,
+        "p95": 0.0348340000200551,
+        "max": 0.03729199999361299,
+        "mean": 0.015203124999000768
+      },
+      "recordingMs": {
+        "median": 0.007457999978214502,
+        "p95": 0.01041699998313561,
+        "max": 0.014583999989554286,
+        "mean": 0.007466816666298352
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "source": "/Users/ross/.supacode/repos/paper-flight/self-collision",
+  "base": "26cc85fe47f0d5283e311af8a4e7ef657a6abebe",
+  "files": {
+    "README.md": "f08c092c9ade31761bc65147510cbd72e2df695c2e57f23a32836966707b07e2",
+    "docs/TASK_REPORT.md": "9d947b14c684995733d4a82a3a7d35d41c0942b1e27b8629e102cd2609ee61bd",
+    "docs/folded-flight.md": "3e7add010da21506969505d09628b0a5a75012029773d3f1a4dc0f2df6e17653",
+    "docs/physics-upgrade.md": "7284d66bae483869776df5cc08c9ba58e635d88de8349b2d47e2d42be29efeb4",
+    "docs/physics-validation.md": "9173a7b4d20cd0e15f72147f0ae81f2f2332958132784501ce929dcddd726962",
+    "docs/self-contact-benchmark-results.json": "8249c3359a035e45bfed134f741961922368d07b877555383ea8a66163989daa",
+    "package.json": "1ccf9d7065980092476890e927a09750ecb556558f44e74b1b59e902209c0bef",
+    "src/physics/self-contact.ts": "25df398d9088295e6662281ea427eb3cdeb7c121f69aa602de3dea6af5ca442d",
+    "src/physics/simulation.ts": "d12cb90549f6200216f6bac58ded28d45fa569b5d5f2daed92223a014fdf9175",
+    "tests/fixtures/intersections.ts": "80fb74b8d37c76d68f471cc5eea874a1349f41cebd262faf3879a56136a5f9e8",
+    "tests/self-contact-benchmark.ts": "6d52ce639f7b112571514b8c334da8d0af5bf20f9713c12de69119d95eddc5b5",
+    "tests/self-contact.test.ts": "bf2f7aac69e74ccaf2bb5c970ce42584cbbfdc0e04650b4ea0fd84eb45fffe15"
+  },
+  "snapshotCommit": "43ef0d9b64e8de8d1b5a43a7ea3573dacd9ef94c"
+}
