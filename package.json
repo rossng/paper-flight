@@ -11,6 +11,7 @@
     "test": "node --import tsx --test --test-concurrency=2 tests/*.test.ts",
     "test:slow": "node --import tsx --test --test-concurrency=2 tests/slow/*.test.ts",
     "test:full": "node --import tsx --test --test-concurrency=2 tests/slow/*.test.ts tests/*.test.ts",
+    "test:browser-ui": "node tests/browser-ui.mjs",
     "benchmark": "node --import tsx tests/benchmark.ts",
     "benchmark:physics": "node --import tsx tests/physics-benchmark.ts",
     "benchmark:launcher": "node --import tsx tests/launcher-benchmark.ts",

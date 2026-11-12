@@ -39,6 +39,12 @@ npm run preview    # Preview the built site locally
 
 Run `npm run test:full` when changing physics or folding.
 
+For browser UI checks, start Vite and an isolated Chrome instance with remote
+debugging enabled (see [browser setup](docs/performance.md)), then run
+`npm run test:browser-ui -- --cdp 9297 --url http://127.0.0.1:5197/` against the dev server.
+This checks responsive fold instructions, all ten designs, picker keyboard controls
+and opening times, idle rendering, animated folds, and a complete flight/replay cycle.
+
 The [GitHub Pages workflow](.github/workflows/pages.yml) runs tests and builds the site for pull requests and pushes to `main`. Successful builds on `main` are deployed automatically.
 
 ## About the simulation

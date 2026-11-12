@@ -7,8 +7,6 @@
 /* The workbench is an orbitable model, including during each crease rotation. */
 #sheet canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}#sheet canvas:active{cursor:grabbing}#sheet{filter:drop-shadow(4px 9px 4px #193d3d30)}.fold-buttons{display:flex;gap:9px;align-items:center}.fold-buttons:has(button[hidden]):not(:has(button:not([hidden]))){display:none}#fold-prompt>div:first-child{flex:1;min-width:0}.fold-buttons .secondary{white-space:nowrap}#design-picker{display:flex;align-items:center;gap:7px;z-index:9}#plane-design{display:flex;align-items:center;gap:5px;cursor:pointer;border-radius:6px}#plane-design:hover{background:#ffda5544;transform:none}#plane-design .plane-preview{width:42px;height:28px}.plane-preview{width:72px;height:48px;flex-shrink:0}#plane-options{position:absolute;top:calc(100% + 9px);left:50%;transform:translateX(-50%);width:280px;max-width:calc(100vw - 32px);padding:7px;background:#fff4d8;border:3px solid #243b49;border-radius:13px;box-shadow:0 6px 0 #243b4933}#plane-options button{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:2px solid transparent;border-radius:9px;background:transparent;text-align:left}#plane-options button:hover,#plane-options button:focus-visible{background:#f4dfab;transform:none}#plane-options button[aria-selected=true]{background:#c5e3c4;border-color:#347c6c}#plane-options b{display:block;font-size:13px}#plane-options small{display:block;font-size:9px;margin-top:4px;white-space:normal}.plane-selected{margin-left:auto;color:#25846f}@media(max-width:600px){.fold-buttons{flex-direction:column;gap:7px}.fold-buttons button{width:100%;padding:9px 11px;font-size:12px}#plane-design .plane-preview{width:32px;height:22px}#design-picker{padding:2px 6px;gap:4px}#plane-options{width:260px}#plane-options .plane-preview{width:60px;height:42px}}
 .fold-step-navigation{display:flex;gap:8px;align-items:center}.fold-step-navigation button{flex:1}.fold-step-navigation #undo-fold{padding-inline:12px}@media(max-width:600px){.fold-step-navigation{gap:6px;width:100%}.fold-step-navigation button{width:auto;padding-inline:8px}.fold-buttons{flex-shrink:0}}
-/* Reserve separate mat, instructions and tool areas: title wrapping never shifts them. */
-#sheet-wrap:before{bottom:340px}#sheet{bottom:350px;height:calc(100% - 445px)}.mat-label{bottom:355px}#fold-prompt{height:132px;align-items:center}#fold-prompt>div:first-child{display:grid;grid-template-rows:12px 66px 32px;gap:4px}#step-count{display:block;line-height:12px}#fold-prompt h2{margin:0;line-height:1.1;align-self:start}#fold-prompt p{align-self:start;line-height:1.4}.fold-buttons{flex-shrink:0}@media(max-width:600px){#sheet-wrap:before{bottom:420px}#sheet{bottom:430px;height:calc(100% - 550px)}#fold-prompt{height:144px}#fold-prompt>div:first-child{grid-template-rows:12px 66px 36px}#fold-prompt h2{font-size:20px;line-height:1.1}}
 .material-choices{display:flex;gap:8px;align-items:stretch}.special-material{width:84px;height:74px;display:flex;flex-direction:column;justify-content:center;align-items:center;background:#eadff5;border:2px solid #b3a0be;border-radius:9px}.special-material>span{font-size:23px;color:#846099}.special-material.selected{background:#dcc8ee;border-color:#806095;box-shadow:0 3px 0 #806095}.weather-button{position:absolute;top:196px;left:35px;z-index:7;display:flex;align-items:center;gap:9px;background:#fff4d8;border:2px solid #243b49;border-radius:12px;padding:8px 11px;box-shadow:0 3px 0 #243b49}.weather-button b{display:block;font-size:11px}.weather-button small{display:block;font-size:8px;margin-top:2px}.weather-button:disabled{opacity:1;cursor:default}#wind-arrow{font-size:26px;line-height:1;display:inline-block;color:#338a81}.weather-dialog{width:410px;padding:24px}.weather-dialog h2{margin-top:8px}.weather-dialog>p{margin:8px 0 18px;font-size:12px}.weather-dialog h3{font-size:12px;margin-top:18px}.weather-strength{display:flex;gap:7px}.weather-strength button,.wind-directions button{background:#fff8e8;border:2px solid #c5bda4;border-radius:9px;padding:9px;font-size:12px}.weather-strength button{flex:1}.weather-dialog [aria-pressed=true]{background:#ffda55;border-color:#997826}.wind-rose{display:flex;align-items:center;gap:18px;margin:12px 0 18px}.wind-compass{flex-shrink:0;width:72px;height:72px;border:3px solid #397b75;border-radius:50%;display:grid;place-items:center;background:#c5e3d6}.wind-compass span{font-size:43px;line-height:1;display:block;color:#287d74}.wind-directions{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1}.wind-directions button{font-size:10px;padding:8px 5px}.weather-toggle{display:flex;align-items:center;gap:10px;margin:12px 0;cursor:pointer}.weather-toggle input{width:20px;height:20px;accent-color:#338a81}.weather-toggle b{font-size:13px}.weather-toggle small{display:block;font-size:10px;margin-top:2px;color:#65756b}#weather-done{width:100%;margin-top:12px;font-size:18px;padding:12px}.weather-dialog{max-height:calc(100dvh - 28px);overflow:auto}@media(max-width:900px){.weather-button{left:20px;top:202px}}@media(max-width:600px){.material-choices{flex:1;min-width:0;gap:5px}.material-choices .choices{min-width:0}.special-material{flex-shrink:0;width:59px;height:56px}.special-material>span{font-size:17px}.weather-button{left:50%;top:198px;transform:translateX(-50%);padding:5px 10px;gap:7px;white-space:nowrap}.weather-button:hover:not(:disabled),.weather-button:active{transform:translateX(-50%)}.weather-button b{font-size:10px}.weather-button small{font-size:7px}#wind-arrow{font-size:23px}.field-note{top:252px}.field-note span{font-size:22px}.weather-dialog{padding:20px}.paper-tool{gap:8px}}
 .weather-dialog{max-width:calc(100vw - 28px)}@media(max-width:600px){.special-material{width:80px}}
 /* Replay stays a small transport bar; inspection overlays live in a dismissible tray. */
@@ -26,3 +24,89 @@
 #library-downloads{position:absolute;right:0;top:48px}.stage-top #camera{margin-left:auto}
 @media(max-width:650px){#library-downloads{top:0}}
 .stage-top:has(#plane-options:not([hidden])){z-index:9}
+
+/* Content-sized workbench rows keep long instructions clear of the mat and tools.
+   Short screens scroll the page instead of clipping controls. Flight remains full-screen. */
+.game[data-mode=workbench]{height:auto;min-height:100dvh;overflow:visible}
+[data-mode=workbench] .stage{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(240px,1fr) auto auto auto;gap:20px;height:auto;min-height:100dvh;padding:22px 30px 10px;overflow:visible;background-color:#d8af79;background-image:repeating-linear-gradient(0deg,transparent 0 100px,#b98b5b55 101px 104px,transparent 105px 108px),repeating-linear-gradient(3deg,transparent 0 12px,#bd955e25 13px 14px)}
+[data-mode=workbench] #viewport{display:none}
+[data-mode=workbench] .game-top,[data-mode=workbench] .stage-top,[data-mode=workbench] .stage-bottom{position:relative;inset:auto;min-width:0;gap:12px}
+[data-mode=workbench] .game-top{min-height:66px}
+[data-mode=workbench] .stage-top{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
+[data-mode=workbench] #location{justify-self:start}
+[data-mode=workbench] #camera{justify-self:end}
+[data-mode=workbench] #design-picker{position:relative;inset:auto;transform:none;min-width:0}
+[data-mode=workbench] #sheet-wrap{position:relative;inset:auto;min-height:240px;background:none}
+[data-mode=workbench] #sheet-wrap:before{inset:0 15%;transform:rotate(-1deg)}
+[data-mode=workbench] #sheet{inset:0 15%;width:70%;height:100%}
+[data-mode=workbench] .fold-progress{top:30px;left:6px}
+[data-mode=workbench] .desk-sticker{top:35px;right:6px}
+[data-mode=workbench] .desk-pencil{top:156px;right:7%;height:100px;transform:rotate(75deg)}
+[data-mode=workbench] .mat-label{bottom:12px}
+#fold-prompt{position:relative;inset:auto;transform:none;justify-self:center;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;width:min(900px,100%);height:auto;padding-block:6px}
+#fold-prompt>div:first-child{display:grid;gap:6px;min-width:0}
+#step-count{display:block;line-height:1.4}
+#step-count:empty{display:none}
+#fold-prompt h2{margin:0;line-height:1.15;overflow-wrap:anywhere;text-wrap:pretty}
+#fold-prompt p{max-width:none;line-height:1.5;overflow-wrap:anywhere}
+.fold-buttons{flex-direction:column;align-items:stretch;gap:12px}
+.fold-step-navigation{min-width:0}
+#workbench-tools{position:relative;inset:auto;transform:none;justify-self:center;width:max-content;max-width:100%;min-width:0}
+.tool,.material-choices,.material-choices .choices{min-width:0}
+.wing-controls button{flex-shrink:0}
+#wing-label{overflow-wrap:anywhere;text-align:center}
+.stage-bottom{gap:12px;flex-wrap:wrap;line-height:1.5}
+#plane-options{max-height:min(360px,calc(100dvh - 190px));overflow:auto;overscroll-behavior:contain}
+#plane-options button>span,#material-options button>span{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.plane-selected,.material-tick{flex-shrink:0}
+@media(min-width:601px) and (max-width:850px){
+ #workbench-tools{gap:12px;padding:12px}
+ .tool+.tool{padding-left:12px}
+ .choices button{width:54px}
+ .special-material{width:70px}
+ .wing-controls{gap:6px}
+ .segmented button{padding-inline:8px}
+}
+@media(min-width:601px) and (max-width:700px){
+ #workbench-tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%}
+ .paper-tool{grid-column:1/-1}
+ .tool+.tool{border:0;padding:0}
+ .material-choices .choices{flex:1}
+ .choices button{flex:1}
+}
+@media(max-width:600px){
+ [data-mode=workbench] .stage{padding:16px 14px 10px;gap:16px;grid-template-rows:auto auto minmax(230px,1fr) auto auto auto}
+ [data-mode=workbench] .game-top{min-height:40px}
+ [data-mode=workbench] .stage-top{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+ [data-mode=workbench] #design-picker{grid-column:1/-1;grid-row:2;justify-self:center}
+ [data-mode=workbench] #sheet-wrap{min-height:230px}
+ [data-mode=workbench] #sheet-wrap:before{inset:0;border-width:6px}
+ [data-mode=workbench] #sheet{inset:0;width:100%;height:100%}
+ #fold-prompt{grid-template-columns:minmax(0,1fr);gap:14px;padding:0}
+ #fold-prompt h2{font-size:24px}
+ #fold-prompt p{font-size:12px}
+ #step-count{font-size:9px}
+ .fold-buttons{flex-direction:row;flex-wrap:wrap;gap:10px;align-items:center}
+ .fold-step-navigation{width:auto;flex:1 1 auto}
+ .fold-buttons>button{width:auto;flex:1 1 auto}
+ .fold-buttons button{min-height:40px}
+ #workbench-tools{width:100%;gap:12px;padding:12px}
+ .paper-tool{flex-direction:column;align-items:stretch;gap:8px}
+ .paper-tool h3{width:auto}
+ .material-choices{gap:6px}
+ .special-material{width:72px}
+ #material-menu{max-width:calc(100vw - 56px)}
+ [data-mode=workbench] .stage-bottom{font-size:9px}
+}
+
+/* Keep the library action in the header flow alongside the restored design list. */
+[data-mode=workbench] .stage-top{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}
+[data-mode=workbench] #library-downloads{position:static;grid-column:3;grid-row:2;justify-self:end}
+[data-mode=workbench] #camera{grid-column:3;grid-row:1}
+[data-mode=workbench] #design-picker{grid-column:2;grid-row:1/3}
+[data-mode=workbench] #location{grid-row:1/3}
+@media(max-width:650px){
+ [data-mode=workbench] .stage-top{grid-template-columns:minmax(0,1fr) auto}
+ [data-mode=workbench] #design-picker{grid-column:1/-1;grid-row:1;justify-self:center}
+ [data-mode=workbench] #library-downloads{grid-column:1/-1;grid-row:2;justify-self:center}
+}

@@ -11,7 +11,7 @@ import { FoldingView } from './folding/view';
 import { designs,findDesign,sheetDesigns } from './folding/library';
 import { designFold,collectionFold,foldFilename,saveFold } from './folding/downloads';
 import { readDesignSettings } from './folding/settings';
-import { planeThumbnail } from './folding/thumbnail';
+import { designThumbnail } from './folding/thumbnail';
 import { Viewport } from './rendering/viewport';
 import { materialThumbnail } from './rendering/material-thumbnail';
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -87,18 +87,19 @@ $('fold').onclick=fold;$('undo-fold').onclick=()=>animateFold(step-1);
 $('sheet').onclick=fold;
 $('finish-fold').onclick=()=>{cancelFolding();step=foldLimit();drawSheet();};
 if(design!=='legacy')step=foldLimit();
-
-const thumbnails=new Map<string,string>();
-function thumbnail(id:string){const key=JSON.stringify([id,parameters.size,parameters.span,parameters.dihedral]);let svg=thumbnails.get(key);if(!svg){svg=planeThumbnail(id==='legacy'?new Simulation(parameters).mesh:designMesh(id,parameters));if(thumbnails.size>60)thumbnails.clear();thumbnails.set(key,svg);}return svg;}
+let pickerKey='';
 function updatePicker(){
+ const key=`${design}:${parameters.span}:${parameters.dihedral}`;
+ if(key===pickerKey)return;
+ pickerKey=key;
  const selected=designs.find(item=>item.id===design)!;
- $('plane-design').innerHTML=`${thumbnail(design)}<span>${selected.name}</span><span aria-hidden="true">▾</span>`;
+ $('plane-design').innerHTML=`${designThumbnail(design,parameters)}<span>${selected.name}</span><span aria-hidden="true">▾</span>`;
  $('plane-design').setAttribute('aria-label',`Choose plane: ${selected.name}`);
+ $('plane-options').innerHTML=designs.map(item=>`<button role="option" aria-selected="${item.id===design}" data-design="${item.id}" tabindex="-1">${designThumbnail(item.id,parameters)}<span><b>${item.name}</b><small>${item.detail}${item.recipe?` · ${item.recipe.operations.length} steps`:""}</small></span><span class="plane-selected" aria-hidden="true">${item.id===design?'✓':''}</span></button>`).join('');
 }
 function closePicker(){ $('plane-options').hidden=true;$('plane-design').setAttribute('aria-expanded','false'); }
 function openPicker(){
  closeMaterials();
- $('plane-options').innerHTML=designs.map(item=>`<button role="option" aria-selected="${item.id===design}" data-design="${item.id}" tabindex="-1">${thumbnail(item.id)}<span><b>${item.name}</b><small>${item.detail}${item.recipe?` · ${item.recipe.operations.length} steps`:""}</small></span><span class="plane-selected" aria-hidden="true">${item.id===design?'✓':''}</span></button>`).join('');
  $('plane-options').hidden=false;$('plane-design').setAttribute('aria-expanded','true');
  $('plane-options').querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
 }
@@ -273,13 +274,13 @@ function updateStallMeter(){
  $('stall-angle').textContent=reading.meanIncidence===null?'—':`${reading.meanIncidence.toFixed(1)}°`;
  $('stall-note').textContent=reading.fraction===null?'No aerodynamic load to assess':'Model estimate · includes reversed / sideways flow';
 }
-function updateUI(){updateWindIndicator();updateLiftMeter();updateStallMeter();const m=simulation.metrics();if(viewport.reviewing){$('centres-readout').textContent=[viewport.options.massCenter?'Blue = centre of mass, including folded layers.':'',viewport.options.liftCenter?(viewport.views[0].liftCenter?'Pink = estimated centre of lift at this moment.':'Centre of lift hidden: net lift is too small or cancels out.'):''].filter(Boolean).join(' ');const rms=viewport.views[0].flexRms*1000;$('flex-readout').textContent=(viewport.options.flex?`Flex RMS ${rms.toFixed(2)} mm · displacement arrows ${viewport.options.flexScale}× · blue = undeformed reference. `:'')+(viewport.options.layers?'Rest layers: teal = 1 · orange = 8+ (material overlap).':'');}if(simulation.status==='ready'){m.distance=0;m.altitude=parameters.height;}if(viewport.reviewing&&viewport.reviewFrame){const frame=viewport.reviewFrame;m.time=frame.time;m.altitude=frame.center[1];m.distance=Math.hypot(frame.center[0]-simulation.start[0],frame.center[2]-simulation.start[2]);}$('distance').innerHTML=`${m.distance.toFixed(1)} <small>m</small>`;$('height').innerHTML=`${Math.max(0,m.altitude).toFixed(1)} <small>m</small>`;$('time').innerHTML=`${m.time.toFixed(1)} <small>s</small>`;$('best').innerHTML=`${best.toFixed(1)} <small>m</small>`;$<HTMLButtonElement>('pause').disabled=simulation.status!=='flying';$('pause').textContent=paused?'Resume flight':'Pause flight';
+function updateUI(){if(mode==='workbench')return;updateWindIndicator();updateLiftMeter();updateStallMeter();const m=simulation.metrics();if(viewport.reviewing){$('centres-readout').textContent=[viewport.options.massCenter?'Blue = centre of mass, including folded layers.':'',viewport.options.liftCenter?(viewport.views[0].liftCenter?'Pink = estimated centre of lift at this moment.':'Centre of lift hidden: net lift is too small or cancels out.'):''].filter(Boolean).join(' ');const rms=viewport.views[0].flexRms*1000;$('flex-readout').textContent=(viewport.options.flex?`Flex RMS ${rms.toFixed(2)} mm · displacement arrows ${viewport.options.flexScale}× · blue = undeformed reference. `:'')+(viewport.options.layers?'Rest layers: teal = 1 · orange = 8+ (material overlap).':'');}if(simulation.status==='ready'){m.distance=0;m.altitude=parameters.height;}if(viewport.reviewing&&viewport.reviewFrame){const frame=viewport.reviewFrame;m.time=frame.time;m.altitude=frame.center[1];m.distance=Math.hypot(frame.center[0]-simulation.start[0],frame.center[2]-simulation.start[2]);}$('distance').innerHTML=`${m.distance.toFixed(1)} <small>m</small>`;$('height').innerHTML=`${Math.max(0,m.altitude).toFixed(1)} <small>m</small>`;$('time').innerHTML=`${m.time.toFixed(1)} <small>s</small>`;$('best').innerHTML=`${best.toFixed(1)} <small>m</small>`;$<HTMLButtonElement>('pause').disabled=simulation.status!=='flying';$('pause').textContent=paused?'Resume flight':'Pause flight';
  if(!completed&&!['ready','flying'].includes(simulation.status)){completed=true;$('review-flight').hidden=recording.frames.length<2||simulation.status==='error';if(simulation.status!=='error')celebrate();const record=m.distance>best;if(simulation.status!=='error'){best=Math.max(best,m.distance);try{localStorage.setItem('paper-flight-best',String(best));}catch{}}
  $('result-stars').textContent=simulation.status==='error'?'✕':'★'.repeat(Math.min(3,Math.floor(m.distance/5)))+'☆'.repeat(3-Math.min(3,Math.floor(m.distance/5)));$('result').hidden=false;$('result-label').textContent=simulation.status==='error'?'FLIGHT INTERRUPTED':simulation.status==='finished'?'FLIGHT TIME LIMIT':record?'NEW RECORD!':'TOUCHDOWN!';$('result-distance').textContent=m.distance.toFixed(1);$('result-detail').textContent=simulation.status==='error'?'The solver could not finish this flight. Try another fold.':`${m.time.toFixed(1)}s airtime · ${m.distance>=15?'Ace pilot!':m.distance>=10?'Nice flight!':m.distance>=5?'Getting the hang of it!':'Try more power or a different pitch.'}`;$('flight-state').textContent='NICE LANDING!';$('launch-help').textContent='';
  }
 }
 function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!paused&&simulation.status==='flying'){
  flightRunner?.advance(elapsed);
- }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();viewport.render();if(mode==='workbench')foldingView.render();requestAnimationFrame(animate);}
+ }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();if(mode==='workbench')foldingView.render();else viewport.render();requestAnimationFrame(animate);}
 new ResizeObserver(()=>paintSling()).observe($('launch-overlay'));
 document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();flightRunner?.setSuspended(document.hidden);if(document.hidden)preparation.clear();});drawSheet();updateUI();requestAnimationFrame(animate);
