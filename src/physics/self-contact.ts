@@ -6,7 +6,6 @@ type Bounds = [number,number,number,number,number,number];
 export interface SelfContact { kind:'vertex-face'|'edge-edge'; ids:Ids; sign:number; key:number }
 const GAP_EPS=1e-9, PARAM_EPS=1e-7;
 const emptyBounds=():Bounds=>[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
-function overlaps(a:Bounds,b:Bounds){return a[0]<=b[3]&&b[0]<=a[3]&&a[1]<=b[4]&&b[1]<=a[4]&&a[2]<=b[5]&&b[2]<=a[5];}
 function sweptBounds(ids:readonly number[],old:V3[],p:V3[],motion:V3):Bounds {
   const box=emptyBounds();
   for(const i of ids)for(let d=0;d<3;d++){box[d]=Math.min(box[d],old[i][d],p[i][d]-motion[d])-GAP_EPS;box[d+3]=Math.max(box[d+3],old[i][d],p[i][d]-motion[d])+GAP_EPS;}
@@ -16,21 +15,46 @@ function sweptBounds(ids:readonly number[],old:V3[],p:V3[],motion:V3):Bounds {
 /** Fixed topology BVH, refitted to swept bounds. No spatial-cell explosion for
  * fast motion and no all-pairs feature list retained between substeps. */
 class SweptTree {
-  box=emptyBounds(); left?:SweptTree; right?:SweptTree; index=-1;
+  private bounds:Float64Array;
+  private leaves:Int32Array;
+  private right:Int32Array;
+  private escape:Int32Array;
   constructor(indices:number[],centers:V3[]){
-    if(indices.length===1){this.index=indices[0];return;}
-    const ranges=[0,1,2].map(d=>Math.max(...indices.map(i=>centers[i][d]))-Math.min(...indices.map(i=>centers[i][d])));
-    const axis=ranges.indexOf(Math.max(...ranges));indices.sort((a,b)=>centers[a][axis]-centers[b][axis]||a-b);
-    const mid=indices.length>>1;this.left=new SweptTree(indices.slice(0,mid),centers);this.right=new SweptTree(indices.slice(mid),centers);
+    // Preorder layout retains the original left-then-right visit order. Escape
+    // indices skip entire rejected subtrees without recursive calls or a stack.
+    const leaves:number[]=[],right:number[]=[],escape:number[]=[];
+    const build=(ids:number[])=>{
+      const node=leaves.length;leaves.push(-1);right.push(-1);escape.push(-1);
+      if(ids.length===1)leaves[node]=ids[0];
+      else{
+        const ranges=[0,1,2].map(d=>Math.max(...ids.map(i=>centers[i][d]))-Math.min(...ids.map(i=>centers[i][d])));
+        const axis=ranges.indexOf(Math.max(...ranges));ids.sort((a,b)=>centers[a][axis]-centers[b][axis]||a-b);
+        const mid=ids.length>>1;build(ids.slice(0,mid));right[node]=leaves.length;build(ids.slice(mid));
+      }
+      escape[node]=leaves.length;
+    };
+    build(indices);this.leaves=Int32Array.from(leaves);this.right=Int32Array.from(right);this.escape=Int32Array.from(escape);
+    this.bounds=new Float64Array(leaves.length*6);
   }
   refit(boxes:Bounds[]){
-    if(this.index>=0){this.box=boxes[this.index];return;}
-    this.left!.refit(boxes);this.right!.refit(boxes);
-    for(let d=0;d<3;d++){this.box[d]=Math.min(this.left!.box[d],this.right!.box[d]);this.box[d+3]=Math.max(this.left!.box[d+3],this.right!.box[d+3]);}
+    const bounds=this.bounds;
+    for(let node=this.leaves.length-1;node>=0;node--){
+      const offset=node*6,index=this.leaves[node];
+      if(index>=0){for(let d=0;d<6;d++)bounds[offset+d]=boxes[index][d];}
+      else{
+        const left=(node+1)*6,right=this.right[node]*6;
+        for(let d=0;d<3;d++){bounds[offset+d]=Math.min(bounds[left+d],bounds[right+d]);bounds[offset+d+3]=Math.max(bounds[left+d+3],bounds[right+d+3]);}
+      }
+    }
   }
   query(box:Bounds,visit:(index:number)=>void){
-    if(!overlaps(box,this.box))return;
-    if(this.index>=0)visit(this.index);else{this.left!.query(box,visit);this.right!.query(box,visit);}
+    const bounds=this.bounds,leaves=this.leaves,escape=this.escape;
+    const [lx,ly,lz,hx,hy,hz]=box;
+    for(let node=0;node<leaves.length;){
+      const b=node*6;
+      if(!(bounds[b]<=hx&&lx<=bounds[b+3]&&bounds[b+1]<=hy&&ly<=bounds[b+4]&&bounds[b+2]<=hz&&lz<=bounds[b+5])){node=escape[node];continue;}
+      if(leaves[node]>=0)visit(leaves[node]);node++;
+    }
   }
 }
 
@@ -59,7 +83,7 @@ function vectors(p:V3[],ids:Ids,kind:SelfContact['kind']){
   const [a,b,c,d]=ids.map(i=>p[i]);
   return kind==='vertex-face'?[sub(a,b),sub(c,b),sub(d,b)]:[sub(a,c),sub(b,a),sub(d,c)];
 }
-function polynomial(old:V3[],p:V3[],ids:Ids,kind:SelfContact['kind']){
+function polynomial(old:V3[],p:V3[],ids:Ids,kind:SelfContact['kind'],out:number[]){
   const vf=kind==='vertex-face',a=old[ids[0]],b=old[ids[vf?1:2]],c=old[ids[vf?2:1]],eo=old[ids[vf?1:0]],f=old[ids[3]];
   const ap=p[ids[0]],bp=p[ids[vf?1:2]],cp=p[ids[vf?2:1]],ep=p[ids[vf?1:0]],fp=p[ids[3]];
   const rx=a[0]-b[0],ry=a[1]-b[1],rz=a[2]-b[2],ex=c[0]-eo[0],ey=c[1]-eo[1],ez=c[2]-eo[2],fx=f[0]-b[0],fy=f[1]-b[1],fz=f[2]-b[2];
@@ -68,8 +92,8 @@ function polynomial(old:V3[],p:V3[],ids:Ids,kind:SelfContact['kind']){
   const nx=ey*fz-ez*fy,ny=ez*fx-ex*fz,nz=ex*fy-ey*fx;
   const mx=dey*fz-dez*fy+ey*dfz-ez*dfy,my=dez*fx-dex*fz+ez*dfx-ex*dfz,mz=dex*fy-dey*fx+ex*dfy-ey*dfx;
   const qx=dey*dfz-dez*dfy,qy=dez*dfx-dex*dfz,qz=dex*dfy-dey*dfx;
-  return [rx*nx+ry*ny+rz*nz,drx*nx+dry*ny+drz*nz+rx*mx+ry*my+rz*mz,
-    drx*mx+dry*my+drz*mz+rx*qx+ry*qy+rz*qz,drx*qx+dry*qy+drz*qz,nx*nx+ny*ny+nz*nz];
+  out[0]=rx*nx+ry*ny+rz*nz;out[1]=drx*nx+dry*ny+drz*nz+rx*mx+ry*my+rz*mz;
+  out[2]=drx*mx+dry*my+drz*mz+rx*qx+ry*qy+rz*qz;out[3]=drx*qx+dry*qy+drz*qz;out[4]=nx*nx+ny*ny+nz*nz;return out;
 }
 function geometry(p:V3[],ids:Ids,kind:SelfContact['kind']){
   const [r,e,f]=vectors(p,ids,kind),n=cross(e,f),norm=length(n);
@@ -111,33 +135,39 @@ export function solveSelfContact(p:V3[],invMass:number[],contact:SelfContact){
 }
 
 export class SelfContactSolver {
-  private neighbors:Set<number>[];
+  private neighbors:Uint32Array[];
   private edges:[number,number][]=[];
   private faceTree?:SweptTree; private edgeTree?:SweptTree;
   private previous=new Map<number,SelfContact>();
   private active=new Map<number,SelfContact>();
+  private orderedActive:SelfContact[]=[];
+  private testIds:Ids=[0,0,0,0];
+  private coefficients=[0,0,0,0,0];
   stats={narrowTests:0,vertexFace:0,edgeEdge:0};
   constructor(private mesh:PaperMesh){
-    this.neighbors=mesh.rest.map((_,i)=>new Set([i]));const keys=new Set<string>();
+    // Compact material adjacency: hot broad-phase visitors test bits instead
+    // of hashing vertex IDs. One bit per pair, with the same one-ring exclusion.
+    this.neighbors=mesh.rest.map((_,i)=>{const row=new Uint32Array(Math.ceil(mesh.rest.length/32));row[i>>>5]|=1<<(i&31);return row;});const keys=new Set<string>();
     for(const face of mesh.faces)for(let j=0;j<3;j++){
-      const a=face[j],b=face[(j+1)%3];this.neighbors[a].add(b);this.neighbors[b].add(a);
+      const a=face[j],b=face[(j+1)%3];this.neighbors[a][b>>>5]|=1<<(b&31);this.neighbors[b][a>>>5]|=1<<(a&31);
       const key=`${Math.min(a,b)}:${Math.max(a,b)}`;if(!keys.has(key)){keys.add(key);this.edges.push([a,b]);}
     }
     const tree=(features:number[][])=>features.length?new SweptTree(features.map((_,i)=>i),features.map(f=>[0,1,2].map(d=>f.reduce((s,i)=>s+mesh.rest[i][d]/f.length,0)) as V3)):undefined;
     this.faceTree=tree(mesh.faces);this.edgeTree=tree(this.edges);
   }
-  reset(){this.previous.clear();this.active.clear();this.stats={narrowTests:0,vertexFace:0,edgeEdge:0};}
-  beginStep(){this.previous=this.active;this.active=new Map();this.stats={narrowTests:0,vertexFace:0,edgeEdge:0};}
-  get contacts(){return [...this.active.values()];}
+  reset(){this.previous.clear();this.active.clear();this.orderedActive.length=0;this.stats={narrowTests:0,vertexFace:0,edgeEdge:0};}
+  beginStep(){this.previous=this.active;this.active=new Map();this.orderedActive.length=0;this.stats={narrowTests:0,vertexFace:0,edgeEdge:0};}
+  get contacts(){return this.orderedActive.slice();}
   detect(old:V3[],p:V3[]){
     // A linearly translating frame preserves every impact time and prevents a
     // fast rigid launch from inflating every swept box by the flight distance.
     const motion:V3=[0,0,0];
     for(let i=0;i<p.length;i++)for(let d=0;d<3;d++)motion[d]+=(p[i][d]-old[i][d])/p.length;
-    const test=(ids:Ids,kind:SelfContact['kind'],key:number)=>{
+    const test=(i0:number,i1:number,i2:number,i3:number,kind:SelfContact['kind'],key:number)=>{
       if(this.active.has(key))return;
       this.stats.narrowTests++;
-      const coefficients=polynomial(old,p,ids,kind);
+      const ids=this.testIds;ids[0]=i0;ids[1]=i1;ids[2]=i2;ids[3]=i3;
+      const coefficients=polynomial(old,p,ids,kind,this.coefficients);
       // Bernstein convex hull: all four same-sign control values exclude roots.
       const [a,b,c,d,nn]=coefficients,b1=a+b/3,b2=a+2*b/3+c/3,b3=a+b+c+d;
       const sameSign=(a>0&&b1>0&&b2>0&&b3>0)||(a<0&&b1<0&&b2<0&&b3<0);
@@ -161,23 +191,24 @@ export class SelfContactSolver {
         }
       }
       if(!sign)return;
-      const contact={ids,kind,sign,key};this.active.set(key,contact);
+      const contact={ids:[...ids] as Ids,kind,sign,key};this.active.set(key,contact);this.orderedActive.push(contact);
       if(kind==='vertex-face')this.stats.vertexFace++;else this.stats.edgeEdge++;
     };
     const faces=this.mesh.faces,faceBoxes=faces.map(f=>sweptBounds(f,old,p,motion));this.faceTree?.refit(faceBoxes);
     for(let v=0;v<p.length;v++)this.faceTree?.query(sweptBounds([v],old,p,motion),fi=>{
-      const f=faces[fi];if(f.some(i=>this.neighbors[v].has(i)))return;
-      test([v,...f],'vertex-face',v*faces.length+fi);
+      const f=faces[fi],neighbors=this.neighbors[v];if((neighbors[f[0]>>>5]&(1<<(f[0]&31)))||(neighbors[f[1]>>>5]&(1<<(f[1]&31)))||(neighbors[f[2]>>>5]&(1<<(f[2]&31))))return;
+      test(v,f[0],f[1],f[2],'vertex-face',v*faces.length+fi);
     });
     const edgeBoxes=this.edges.map(e=>sweptBounds(e,old,p,motion));this.edgeTree?.refit(edgeBoxes);
     this.edges.forEach(([a,b],i)=>this.edgeTree?.query(edgeBoxes[i],j=>{
       if(j<=i)return;const [c,d]=this.edges[j];
-      if(this.neighbors[a].has(c)||this.neighbors[a].has(d)||this.neighbors[b].has(c)||this.neighbors[b].has(d))return;
-      test([a,b,c,d],'edge-edge',p.length*faces.length+i*this.edges.length+j);
+      const na=this.neighbors[a],nb=this.neighbors[b],cw=c>>>5,dw=d>>>5,cb=1<<(c&31),db=1<<(d&31);
+      if((na[cw]&cb)||(na[dw]&db)||(nb[cw]&cb)||(nb[dw]&db))return;
+      test(a,b,c,d,'edge-edge',p.length*faces.length+i*this.edges.length+j);
     }));
   }
   solve(p:V3[],invMass:number[],forward=true){
-    const contacts=this.contacts;
+    const contacts=this.orderedActive;
     for(let j=0;j<contacts.length;j++)solveSelfContact(p,invMass,contacts[forward?j:contacts.length-1-j]);
   }
 }
