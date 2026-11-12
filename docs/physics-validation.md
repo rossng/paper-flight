@@ -2,7 +2,7 @@
 
 Measured locally on 2026-11-12 with Node v26.12.1. Reproduce with `npm test`, `npm run build`, `npm run benchmark:physics` and `npm run benchmark`. [Raw benchmark results](physics-benchmark-results.json) retain the numeric output. These checks validate implementation properties and expose numerical error; they do not calibrate paper flight against measurements.
 
-The measurements below precede the swept self-contact increment. See [the current contact report](TASK_REPORT.md) for crossing regressions, paired penetration/timing measurements and remaining stack-order limitations. Historical flight ranges and timing below have not been remeasured with swept contact enabled.
+The measurements below precede the swept self-contact increment. See [the current contact report](self-contact.md) for crossing regressions, paired penetration/timing measurements and remaining stack-order limitations. Historical flight ranges and timing below have not been remeasured with swept contact enabled.
 
 ## Automated checks
 
@@ -70,7 +70,7 @@ At a matched 0.4 s under the same launch, contact preserves mass but allows more
 | Folded Dart | 2.529 | 0.768 | 30.7 | 20.2 |
 | Stable | 3.489 | 0.153 | 13.5 | 11.5 |
 
-These timings are single local runs, including startup/JIT effects and diagnostic work. They are not browser-frame guarantees. Folded cases can exceed the 8.33 ms physics budget; the existing fixed clock slows simulated progression instead of enlarging timesteps. Tissue can require additional substeps. This performance limit is explicit; a Worker or further contact optimization is future work.
+These timings are single local runs, including startup/JIT effects and diagnostic work. They are not browser-frame guarantees. Folded cases can exceed the 8.33 ms physics budget; the existing fixed clock slows simulated progression instead of enlarging timesteps. Tissue can require additional substeps. These timings predate the [worker and contact optimisations](performance.md).
 
 The separate full-flight Original-dart benchmark, after warmup, measured:
 

@@ -8,11 +8,11 @@ Choose a plane, adjust its workbench settings, then open **Library & downloads â
 
 ## Primary sources and reuse basis
 
-Checked 12 November 2026. Coordinates, labels, procedural history and thumbnails are independently authored here. All generated geometry carries the project's full MIT notice. No third-party photos, printable templates or downloaded meshes are bundled. Reference designers are not inferred from the tutorial publisher.
+Checked 12 November 2026. Coordinates, labels, procedural history and thumbnails are independently authored here. All generated geometry carries the project's full Blue Oak Model License 1.0.0. No third-party photos, printable templates or downloaded meshes are bundled. Reference designers are not inferred from the tutorial publisher.
 
 | Reference / asset | What is implemented or found | Reuse basis / limitations |
 | --- | --- | --- |
-| [The Basic](https://www.foldnfly.com/0.html), [Basic Dart](https://www.foldnfly.com/1.html), [The Stable](https://www.foldnfly.com/2.html) | Existing corner-fold, swept-dart and selective-lock reconstructions | Existing independently authored MIT recipes; source artwork not included. Stable's flap is geometric, not a certified lock. |
+| [The Basic](https://www.foldnfly.com/0.html), [Basic Dart](https://www.foldnfly.com/1.html), [The Stable](https://www.foldnfly.com/2.html) | Existing corner-fold, swept-dart and selective-lock reconstructions | Existing independently authored Blue Oak recipes; source artwork not included. Stable's flap is geometric, not a certified lock. |
 | [Heavy-Nosed Plane](https://www.foldnfly.com/7.html) | `heavy-nose`: dart shoulders followed by a nose reversal and two selective pleat folds | Independent coordinates; authored 22 mm wing root. The returning flap selects nose layers, leaving the tail intact. |
 | [Hunting Flight](https://www.foldnfly.com/6.html) | `hunting`: three leading-edge rolls, corners, two winglets, wing deployment | Independent study with 25.4 mm fold bands and 12 mm winglets. Winglets are prepared before deployment. No optional tape. |
 | [The Buzz](https://www.foldnfly.com/3.html) | `buzz`: corner folds, nose reversal, shoulders, reversed nose hem, wings | Independent geometry with a 13 mm hem and root. Optional tape and tail trimming adjustments are absent. |
@@ -37,3 +37,5 @@ Each individual FOLD has original 2D material coordinates at the root and a self
 The common registry is `src/folding/library.ts`, backed by `recipes.ts`. The main picker, study, downloads, query validation and launch use its IDs. `design.ts` applies wing/material choices; `downloads.ts` also applies sheet-size scaling. Relative navigation and browser Blob downloads do not assume a root deployment path.
 
 Material area, seams, rigid panels and finite numerical flight are tested. No physical throws have calibrated these studies. Folding remains zero-thickness kinematics; the flight solverâ€™s swept self-contact and initial-layer contact do not prove collision-free folding, full stacking order or a working frictional lock. New designs retain their authored span; all expose wing angle, sheet size and material selection.
+
+See [validation results](plane-library-validation.md) for recorded checks.

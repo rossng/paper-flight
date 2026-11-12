@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib';
 
 // Paired benchmark evidence includes trajectories, all vertex forces and
 // velocities, deformation/strain, crease plasticity and contact diagnostics.
-const input=process.argv[2]??'docs/performance/paired-final.json';
+const input=process.argv[2]??'docs/performance/self-collision-paired.json';
 const states=JSON.parse(gunzipSync(readFileSync(input+'.states.json.gz')).toString());
 const results=[];
 for(const before of states.filter((s:any)=>s.variant==='baseline')){
