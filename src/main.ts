@@ -1,5 +1,6 @@
 import './style.css';
-import { DEFAULTS, FixedClock, Simulation, FRAME_PHYSICS_BUDGET_MS, type Parameters } from './physics/simulation';
+import { DEFAULTS, Simulation, type Parameters } from './physics/simulation';
+import { FlightRunner, FlightPreparation } from './physics/flight-runner';
 import { materials, materialSettings, type MaterialId } from './physics/materials';
 import { airVelocity } from './physics/weather';
 import { elasticPull, pullTravel, launchSpeed, RELEASE_DURATION_MS, springRemaining } from './physics/launcher';
@@ -40,9 +41,9 @@ let simulation=createSimulation();let mode:'workbench'|'throw'='workbench',step=
 try{best=Number(localStorage.getItem('paper-flight-best'))||0;}catch{/* Storage is optional. */}
 let viewport:Viewport;
 try{viewport=new Viewport($('viewport'));viewport.setSimulations([simulation]);}catch(error){document.querySelector('.stage')!.innerHTML='<div class="webgl-error"><h2>The field needs WebGL.</h2><p>Enable browser hardware acceleration, then reload to fold and fly.</p></div>';throw error;}
-const clock=new FixedClock();let previous=performance.now(),lastUI=0,completed=false;
+let flightRunner:FlightRunner|undefined;const preparation=new FlightPreparation();let previous=performance.now(),lastUI=0,completed=false;
 let recording=new FlightRecording(),reviewTime=0,replayPlaying=false;const reviewKeys=new Set<string>();
-function rebuild(){setInspector(false);$('lift-meter').hidden=true;$('stall-meter').hidden=true;$<HTMLDetailsElement>('review-more').open=false;recording=new FlightRecording();replayPlaying=false;reviewKeys.clear();$('review-controls').hidden=true;document.querySelector('main')!.classList.remove('reviewing');$('review-flight').hidden=true;simulation=createSimulation();viewport.setSimulations([simulation]);clock.reset();completed=false;paused=false;}
+function rebuild(){flightRunner?.dispose();flightRunner=undefined;preparation.clear();setInspector(false);$('lift-meter').hidden=true;$('stall-meter').hidden=true;$<HTMLDetailsElement>('review-more').open=false;recording=new FlightRecording();replayPlaying=false;reviewKeys.clear();$('review-controls').hidden=true;document.querySelector('main')!.classList.remove('reviewing');$('review-flight').hidden=true;simulation=createSimulation();viewport.setSimulations([simulation]);completed=false;paused=false;}
 const foldAnimator=new FoldAnimator(),foldingView=new FoldingView($('sheet'));let foldSequence:FoldSequence|undefined,previewKey='';
 function preview(){
  const recipe=flightRecipe(design==='legacy'?'dart':design,parameters),key=JSON.stringify(recipe);
@@ -157,6 +158,8 @@ $('pitch-dial').onpointerdown=e=>{pitchPointer=e.pointerId;pitchStartY=e.clientY
 $('pitch-dial').onpointermove=e=>{if(pitchPointer===e.pointerId)setPitch(pitchStart+pitchStartY-e.clientY);};
 $('pitch-dial').onpointerup=$('pitch-dial').onpointercancel=()=>{pitchPointer=null;};
 $('pitch-dial').onkeydown=e=>{const steps:Record<string,number>={ArrowUp:2,ArrowRight:2,ArrowDown:-2,ArrowLeft:-2,PageUp:15,PageDown:-15};if(e.key in steps){e.preventDefault();setPitch(aimPitch+steps[e.key]*(e.shiftKey?5:1));}else if(e.key==='Home'||e.key==='End'){e.preventDefault();setPitch(e.key==='Home'?0:180);}};
+function releaseParameters():Parameters{return {...parameters,speed:releaseSpeed(),heading:-pullX*.7,elevation:4+pullY*.12,pitch:aimPitch};}
+function releaseKey(released:Parameters){return JSON.stringify([design,released]);}
 function paintSling(){
  if(mode!=='throw'||simulation.status!=='ready')return;
  simulation.parameters.heading=-pullX*0.7;simulation.parameters.pitch=aimPitch;simulation.reset();
@@ -166,17 +169,20 @@ function paintSling(){
  $('launch-speed').innerHTML=`${releaseSpeed().toFixed(1)} <small>m/s</small>`;$('pitch-value').textContent=`${Math.round(aimPitch)}°`;$('pitch-dial').setAttribute('aria-valuenow',String(Math.round(aimPitch)));$('pitch-dial').setAttribute('aria-valuetext',`${Math.round(aimPitch)} degrees pitch`);$('pitch-needle').style.transform=`rotate(${-aimPitch}deg)`;
  const tension=pullAmount();$('power-fill').style.width=`${tension}%`;$('power-label').textContent=tension>0?`${Math.round(tension)}% POWER · AIM ${Math.round(-pullX*0.7)}°`:'PULL THE PLANE BACK';
  for(const id of ['band-left','band-right']){$(id).style.strokeWidth=String(8-2.5*tension/100);$(id).style.stroke=`hsl(${28-12*tension/100} 65% ${55-12*tension/100}%)`;}
+ if(!releasing){if(tension>=12&&!paused&&!document.hidden){const released=releaseParameters();preparation.prepare(releaseKey(released),simulation,released);}else preparation.clear();}
 }
 function resetSling(){$<HTMLInputElement>('launch-height').value=String(parameters.height);slingPointer=null;dragging=false;releasing=false;pullX=0;pullY=0;paintSling();$('launch-controls').hidden=false;$('sling').hidden=false;$('bands').removeAttribute('hidden');$('anchor-left').hidden=false;$('anchor-right').hidden=false;$('flight-state').textContent='READY, PILOT?';$('launch-help').textContent='Grab the plane. Pull back. Let it rip.';}
 function launch(){if(mode!=='throw'||simulation.status!=='ready'||pullAmount()<12)return;
- parameters.speed=releaseSpeed();parameters.heading=-pullX*0.7;parameters.elevation=4+pullY*0.12;parameters.pitch=aimPitch;
- rebuild();simulation.launch();recording.capture(simulation);$('launch-controls').hidden=true;$('sling').hidden=true;$('bands').setAttribute('hidden','');$('anchor-left').hidden=true;$('anchor-right').hidden=true;$('flight-state').textContent='WHEEEE!';$('launch-help').textContent='Next stop: a new record?';
+ const released=releaseParameters(),prepared=preparation.take(releaseKey(released));Object.assign(parameters,released);
+ rebuild();simulation.launch();recording.capture(simulation);
+ if(prepared){prepared.activate(simulation,recording);flightRunner=prepared;}else flightRunner=new FlightRunner(simulation,recording);
+ flightRunner.setSuspended(document.hidden);$('launch-controls').hidden=true;$('sling').hidden=true;$('bands').setAttribute('hidden','');$('anchor-left').hidden=true;$('anchor-right').hidden=true;$('flight-state').textContent='WHEEEE!';$('launch-help').textContent='Next stop: a new record?';
 }
 function release(){if(releasing)return;releasing=true;const x=pullX,y=pullY,start=performance.now(),duration=RELEASE_DURATION_MS;function snap(now:number){if(!releasing)return;const t=Math.min(1,(now-start)/duration),remaining=springRemaining(t);pullX=x*remaining;pullY=y*remaining;paintSling();if(t<1)requestAnimationFrame(snap);else{pullX=x;pullY=y;releasing=false;launch();}}requestAnimationFrame(snap);}
 $('sling').onpointerdown=e=>{$<HTMLInputElement>('launch-height').blur();if(simulation.status!=='ready'||releasing||dragging)return;dragging=true;slingPointer=e.pointerId;const travel=pullTravel(pullX,pullY);startX=e.clientX-travel.x;startY=e.clientY-travel.y;$('sling').setPointerCapture(e.pointerId);e.preventDefault();};
 $('sling').onpointermove=e=>{if(!dragging||e.pointerId!==slingPointer)return;const pull=elasticPull(e.clientX-startX,e.clientY-startY);pullX=pull.x;pullY=pull.y;paintSling();};
 $('sling').onpointerup=e=>{if(!dragging||e.pointerId!==slingPointer)return;slingPointer=null;dragging=false;if(pullAmount()>=12)release();else resetSling();};$('sling').onpointercancel=e=>{if(e.pointerId===slingPointer)resetSling();};
-$('sling').onkeydown=e=>{if(simulation.status!=='ready'||releasing)return;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','Enter'].includes(e.key))e.preventDefault();const travel=pullTravel(pullX,pullY);if(e.key==='ArrowLeft')travel.x+=15;if(e.key==='ArrowRight')travel.x-=15;if(e.key==='ArrowDown')travel.y+=15;if(e.key==='ArrowUp')travel.y=Math.max(0,travel.y-15);const pull=elasticPull(travel.x,travel.y);pullX=pull.x;pullY=pull.y;paintSling();if(e.key===' '||e.key==='Enter'){if(pullAmount()<12){pullX=0;pullY=65;}release();}};
+$('sling').onkeydown=e=>{if(simulation.status!=='ready'||releasing)return;if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' ','Enter'].includes(e.key))e.preventDefault();const travel=pullTravel(pullX,pullY);if(e.key==='ArrowLeft')travel.x+=15;if(e.key==='ArrowRight')travel.x-=15;if(e.key==='ArrowDown')travel.y+=15;if(e.key==='ArrowUp')travel.y=Math.max(0,travel.y-15);if(e.key.startsWith('Arrow')){const pull=elasticPull(travel.x,travel.y);pullX=pull.x;pullY=pull.y;paintSling();}if(e.key===' '||e.key==='Enter'){if(pullAmount()<12){pullX=0;pullY=65;}release();}};
 function updateWeather(){
  const angle=windHeading*Math.PI/180;parameters.wind=[breeze*Math.cos(angle),0,breeze*Math.sin(angle)];parameters.windHeading=windHeading;
  parameters.gusts=$<HTMLInputElement>('weather-gusts').checked?1.5:0;parameters.turbulence=$<HTMLInputElement>('weather-turbulence').checked?1:0;
@@ -225,10 +231,10 @@ $('review-summary').onclick=()=>{replayPlaying=false;updateReview();$('result').
 window.addEventListener('keyup',e=>reviewKeys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>reviewKeys.clear());
 function reset(){$('celebration').replaceChildren();rebuild();$('camera').textContent=viewport.options.follow?'Camera: chase':'Camera: launch point';$('stage-hint').textContent='Drag plane to launch · W/S adjusts pitch · R retries';$('result').hidden=true;resetSling();updateUI();}
 $('again').onclick=$('reset').onclick=reset;
-$('pause').onclick=()=>{paused=!paused;clock.reset();$('pause').textContent=paused?'Resume flight':'Pause flight';};
+$('pause').onclick=()=>{paused=!paused;flightRunner?.setPaused(paused);$('pause').textContent=paused?'Resume flight':'Pause flight';};
 window.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]'))return;if(viewport.reviewing&&$('result').hidden){const key=e.key.toLowerCase();if(['w','a','s','d','q','e'].includes(key)&&!(e.target as HTMLElement).matches('input')){e.preventDefault();reviewKeys.add(key);return;}}if(mode==='throw'&&['w','s'].includes(e.key.toLowerCase())){setPitch(aimPitch+(e.key.toLowerCase()==='w'?2:-2));return;}if((e.target as HTMLElement).matches('button,input'))return;if(mode==='throw'){if(e.key.toLowerCase()==='r')reset();}});
 let pausedBeforeNotes=false;
-$('about').onclick=()=>{$<HTMLDialogElement>('notes').showModal();pausedBeforeNotes=paused;paused=true;};$('close').onclick=()=> $<HTMLDialogElement>('notes').close();$('notes').addEventListener('close',()=>{paused=pausedBeforeNotes;clock.reset();});
+$('about').onclick=()=>{$<HTMLDialogElement>('notes').showModal();pausedBeforeNotes=paused;paused=true;flightRunner?.setPaused(true);preparation.clear();};$('close').onclick=()=> $<HTMLDialogElement>('notes').close();$('notes').addEventListener('close',()=>{paused=pausedBeforeNotes;flightRunner?.setPaused(paused);});
 function celebrate(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;for(let i=0;i<28;i++){const piece=document.createElement('i');piece.className='confetti';piece.style.background=['#ffda55','#ff8663','#91c7ba','#fff4d8'][i%4];$('celebration').append(piece);const x=Math.cos(i*2.4)*(140+i*7),y=-180-(i%5)*40;piece.animate([{transform:'translate(0,0) rotate(0deg)',opacity:1},{transform:`translate(${x}px,${y}px) rotate(${i*47}deg)`,opacity:1,offset:.45},{transform:`translate(${x*1.3}px,300px) rotate(${i*90}deg)`,opacity:0}],{duration:1100+i%5*100,easing:'ease-out'}).onfinish=()=>piece.remove();}}
 function updateLiftMeter(){
  const reading=viewport.views[0].liftReading;if(!viewport.options.liftMeter||!reading)return;
@@ -253,8 +259,7 @@ function updateUI(){updateWindIndicator();updateLiftMeter();updateStallMeter();c
  }
 }
 function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!paused&&simulation.status==='flying'){
- const deadline=performance.now()+FRAME_PHYSICS_BUDGET_MS,shouldYield=()=>performance.now()>=deadline;
- clock.advance(elapsed,()=>{const complete=simulation.stepUntil(shouldYield);if(complete)recording.capture(simulation);return complete;},shouldYield);
+ flightRunner?.advance(elapsed);
  }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();viewport.render();if(mode==='workbench')foldingView.render();requestAnimationFrame(animate);}
 new ResizeObserver(()=>paintSling()).observe($('launch-overlay'));
-document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();clock.reset();});drawSheet();updateUI();requestAnimationFrame(animate);
+document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();flightRunner?.setSuspended(document.hidden);if(document.hidden)preparation.clear();});drawSheet();updateUI();requestAnimationFrame(animate);
