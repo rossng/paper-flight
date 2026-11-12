@@ -11,6 +11,8 @@ Fold a paper plane, launch it, and see how far it flies. Try different designs, 
 3. Go to the launcher. Set the nose angle, release height, and weather, then pull the plane back, aim, and release.
 4. After landing, retry or choose **Explore flight** to watch the replay. Open **Inspect** to see bending, paper layers, and lift.
 
+After touchdown, the plane can slide, flex and settle on the textured ground. Replay includes the landing, with separate jumps to touchdown and the end. Distance and airtime stop at first contact; the result also shows ground travel.
+
 Your best distance is saved in your browser when storage is available.
 
 To launch with the keyboard, focus the plane and use the arrow keys to aim and change the pull. Press Space or Enter to launch. Use the pitch dial or its −/+ buttons to change the nose angle.

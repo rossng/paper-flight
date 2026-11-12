@@ -42,14 +42,14 @@ for(const name of cases.filter(c=>selected==='all'||c===selected)){
   const sim:SimulationType=new Simulation(parameters,mesh),recording=new FlightRecording();sim.launch();
   let inner=0;const aeroSettings=sim.aeroSettings.bind(sim);sim.aeroSettings=(time?:number)=>{inner++;return aeroSettings(time);};
   let total=0;const samples:any[]=[];
-  for(let step=0;step<steps&&sim.status==='flying';step++){
+  for(let step=0;step<steps&&sim.active;step++){
    inner=0;const start=performance.now();sim.step();const ms=performance.now()-start;total+=ms;
    if(run>=0){timings.push(ms);substeps.push(inner);}
    // Diagnostics and recording timed separately from the solver.
    let t=performance.now();const metrics=sim.metrics();if(run>=0)metricsMs.push(performance.now()-t);
    t=performance.now();sim.deformation();if(run>=0)deformationMs.push(performance.now()-t);
    t=performance.now();recording.capture(sim);if(run>=0)recordingMs.push(performance.now()-t);
-   if(run===0&&((step+1)%12===0||step===steps-1||sim.status!=='flying')){
+   if(run===0&&((step+1)%12===0||step===steps-1||!sim.active)){
     const candidates=structuredClone(sim.contactCandidates);
     const contacts=detectLayerContacts(sim.positions,sim.positions,candidates);
     samples.push({step:step+1,status:sim.status,substeps:inner,metrics,peakDeformation:sim.peakDeformation,selfContact:sim.selfContact?{stats:{...sim.selfContact.stats},contacts:structuredClone(sim.selfContact.contacts)}:undefined,positions:sim.positions.map(p=>[...p]),velocities:sim.velocities.map(p=>[...p]),forces:sim.forces.map(p=>[...p]),plastic:sim.mesh.hinges.map(h=>h.plasticOffset??0),contactCount:contacts.length,contactSigns:candidates.map((c:any)=>c.sign)});

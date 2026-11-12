@@ -2,7 +2,7 @@ import { Simulation } from '../src/physics/simulation';
 const now=()=>performance.now();
 for(const stiffness of [0.2,1,5]){
  const simulation=new Simulation({stiffness});simulation.launch();let steps=0,maxStrain=0,sumMs=0;const start=now();
- while(simulation.status==='flying'){
+ while(simulation.active){
    const t=now();simulation.step();sumMs+=now()-t;steps++;
    maxStrain=Math.max(maxStrain,simulation.metrics().maxStrain);
  }

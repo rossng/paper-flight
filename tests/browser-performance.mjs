@@ -28,7 +28,7 @@ await send('Page.addScriptToEvaluateOnNewDocument',{source:`
  window.measure={frames:[],longTasks:[],active:false,steps:0,physics:0,render:0,record:0,metrics:0,deformation:0,last:0};
  const raf=requestAnimationFrame;window.requestAnimationFrame=callback=>raf.call(window,time=>{
   if(callback.name!=='animate'){callback(time);return;}
-  const m=window.measure,active=m.active&&window.profileSim?.status==='flying',start=performance.now();
+  const m=window.measure,active=m.active&&window.profileSim?.active,start=performance.now();
   m.steps=0;m.physics=0;m.render=0;m.record=0;m.metrics=0;m.deformation=0;
   callback(time);
   if(active)m.frames.push({duration:performance.now()-start,interval:m.last?time-m.last:0,steps:m.steps,physics:m.physics,render:m.render,record:m.record,metrics:m.metrics,deformation:m.deformation,time:window.profileSim.time});
@@ -93,7 +93,7 @@ try{
   await wait("window.profileSim.status==='flying'");
   if(await evaluate('window.workerStats.length')!==1)throw Error('Matching release did not reuse worker');
   await wait("!document.querySelector('#result').hidden");
-  const comparison=await evaluate(`(async()=>{const loaded=path=>performance.getEntriesByType('resource').findLast(e=>new URL(e.name).pathname===path)?.name??path;const {Simulation}=await import(loaded('/src/physics/simulation.ts'));const expected=new Simulation(window.workerStats[0].launch);expected.launch();while(expected.status==='flying')expected.step();const actual=window.profileSim;return {equal:JSON.stringify([actual.time,actual.positions,actual.velocities,actual.peakDeformation])===JSON.stringify([expected.time,expected.positions,expected.velocities,expected.peakDeformation]),time:actual.time};})()`);
+  const comparison=await evaluate(`(async()=>{const loaded=path=>performance.getEntriesByType('resource').findLast(e=>new URL(e.name).pathname===path)?.name??path;const {Simulation}=await import(loaded('/src/physics/simulation.ts'));const expected=new Simulation(window.workerStats[0].launch);expected.launch();while(expected.active)expected.step();const actual=window.profileSim;return {equal:JSON.stringify([actual.time,actual.positions,actual.velocities,actual.peakDeformation])===JSON.stringify([expected.time,expected.positions,expected.velocities,expected.peakDeformation]),time:actual.time};})()`);
   if(!comparison.equal)throw Error('Adopted flight differs from direct solve');
   await evaluate(`document.querySelector('#reset').click();for(let i=0;i<2;i++)document.querySelector('#sling').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown'}));`);
   await wait('window.workerStats.length===2');await evaluate("document.querySelector('#pitch-up').click()");

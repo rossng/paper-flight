@@ -14,6 +14,6 @@ for(const material of ['tissue','foil','steel'] as const)test(`${material}/${des
  const sim=new Simulation(parameters,design==='legacy'?undefined:designMesh(design,parameters));sim.parameters.speed=launchSpeed(100);sim.launch();
  assert.ok(sim.velocities.every(v=>length(v)===0),'elastic launch starts from rest');
  let strain=0;while(sim.status==='flying'){sim.step();strain=Math.max(strain,sim.metrics().maxStrain);}
- assert.equal(sim.status,'landed');assert.ok(sim.positions.flat().every(Number.isFinite));assert.ok(strain<.2,`maximum edge strain ${strain}`);
+ assert.equal(sim.status,'settling');assert.ok(sim.touchdown);assert.ok(sim.positions.flat().every(Number.isFinite));assert.ok(strain<.2,`maximum edge strain ${strain}`);
 });
 }

@@ -54,8 +54,8 @@ test('partial steps keep clock credit, bounded debt is reported, pause resumes e
 test('yielding still completes landing and records its final state exactly',()=>{
  const a=new Simulation({height:.2,speed:0}),b=new Simulation({height:.2,speed:0});a.launch();b.launch();
  const recording=new FlightRecording();let calls=0;
- while(a.status==='flying'){if(a.stepUntil(()=>true))recording.capture(a);assert.ok(++calls<500);}
- while(b.status==='flying')b.step();
+ while(a.active){if(a.stepUntil(()=>true))recording.capture(a);assert.ok(++calls<10000);}
+ while(b.active)b.step();
  assert.equal(a.status,'landed');assert.deepEqual(a.positions,b.positions);assert.equal(recording.duration,b.time);
  assert.equal(a.stepUntil(()=>true),true);
 });

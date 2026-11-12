@@ -49,7 +49,7 @@ test('coupled comparison: identical launches, less bending with stiffer paper, d
  const a=soft.metrics(),b=stiff.metrics();
  assert.ok(a.deformation>b.deformation*1.5,`matched-time deformation ${a.deformation} vs ${b.deformation}`);
  assert.ok(a.bend>b.bend*2);assert.ok(length(sub(a.force,b.force))>0.001);assert.ok(length(sub(a.center,b.center))>0.1);
- while(soft.status==='flying')soft.step();while(stiff.status==='flying')stiff.step();
+ while(soft.active)soft.step();while(stiff.active)stiff.step();
  assert.equal(soft.status,'landed');assert.equal(stiff.status,'landed');
  assert.ok(soft.peakDeformation>stiff.peakDeformation*1.5);assert.ok(Math.abs(soft.metrics().distance-stiff.metrics().distance)>0.5);
 });

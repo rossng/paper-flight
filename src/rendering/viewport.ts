@@ -114,7 +114,10 @@ export class Viewport {
   });
   decor.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(trail.map(p=>new THREE.Vector3(...p))),this.reviewTrailMaterial));
   const label=(text:string,point:typeof trail[number],color:string)=>{const c=document.createElement('canvas');c.width=256;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.fillRect(0,0,256,96);ctx.fillStyle='#243b49';ctx.font='bold 35px sans-serif';ctx.textAlign='center';ctx.fillText(text,128,61);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));sprite.position.set(point[0],point[1]+0.45,point[2]);sprite.scale.set(1.1,0.41,1);decor.add(sprite);};
-  label('TAKEOFF',trail[0],'#ffda55');label(view.simulation.status==='landed'?'LANDING':'END',trail.at(-1)!,'#ffad84');this.fitReview();
+  label('TAKEOFF',trail[0],'#ffda55');
+  if(view.simulation.touchdown)label('TOUCHDOWN',view.simulation.touchdown.center,'#ffad84');
+  if(!view.simulation.touchdown||view.simulation.groundDistance>.5)label(view.simulation.status==='landed'?'REST':'END',trail.at(-1)!,'#91c7ba');
+  this.fitReview();
  }
  endReview(){this.reviewing=false;this.reviewFollow=false;this.options.flex=false;this.options.layers=false;this.options.massCenter=false;this.options.liftCenter=false;this.options.liftMeter=false;this.options.stallMeter=false;this.reviewFrame=undefined;this.reviewDecor=undefined;this.reviewTrailMaterial=undefined;this.controls.enablePan=false;this.controls.maxDistance=40;this.controls.maxPolarAngle=Math.PI*0.94;this.controls.enabled=this.mode==='workbench';this.home();}
  fitReview(){
