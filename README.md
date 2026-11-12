@@ -1,5 +1,7 @@
 # Paper Flight — Backyard Test Pilot
 
+[Play Paper Flight](https://rossng.github.io/paper-flight/) · [Build and deployment](https://github.com/rossng/paper-flight/actions/workflows/pages.yml)
+
 A browser-only TypeScript / Vite / Three.js experiment in coupled paper-aeroplane flight. The aircraft is a free deformable particle mesh: gravity and coupled exposed-surface aerodynamic forces drive its translation, rotation, bending, and twist. There are no scripted flight trajectories, prescribed in-flight attitude changes, or in-flight position anchors. Workbench folds are animated separately using the recipe’s crease rotations.
 
 ## Run locally
@@ -29,6 +31,12 @@ python3 -m http.server 8080 --directory dist
 ```
 
 Then open `http://localhost:8080`. Do not open `index.html` using `file://`, because ES modules need an HTTP origin.
+
+## GitHub Pages deployment
+
+The [Pages workflow](.github/workflows/pages.yml) runs `npm ci`, the test suite and the production build on pull requests and pushes to `main`, using Node 24. Successful `main` builds deploy `dist/` to **https://rossng.github.io/paper-flight/**. Pull requests only run checks. You can also redeploy `main` from the workflow’s **Run workflow** button.
+
+Pages uses **GitHub Actions** as its publishing source and the `github-pages` environment. Deployment uses GitHub’s temporary token, with Pages and OIDC permissions confined to the deployment job; no personal access token or deployment secret is required. Official actions are pinned to release commits. Vite’s relative base keeps the game, folding study, favicon and assets working under the repository’s path.
 
 ## Play
 
