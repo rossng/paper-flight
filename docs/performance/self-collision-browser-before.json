@@ -1,0 +1,590 @@
+{
+  "context": {
+    "date": "2026-11-12T19:54:59.342Z",
+    "browser": {
+      "protocolVersion": "1.3",
+      "product": "Chrome/157.0.8103.78",
+      "revision": "@4b3d0dabb8250b6f152d2d85d79e7706e309d087",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+      "jsVersion": "15.7.112.43"
+    },
+    "viewport": "1280x800 DPR1",
+    "url": "http://127.0.0.1:5198/",
+    "warmup": "one complete flight per case, then two measured complete flights",
+    "note": "Headless Chrome; rAF/JS and long tasks, not physical display presentation or GPU timings."
+  },
+  "cases": [
+    {
+      "name": "legacy-paper",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 2.110416666666659,
+            "center": [
+              4.6957433171849425,
+              0.10211662452967447,
+              0.22532666707274507
+            ],
+            "peakDeformation": 0.017069309020007358
+          },
+          "frames": 154,
+          "frameMs": {
+            "count": 154,
+            "median": 14.100000023841858,
+            "p95": 16.899999976158142,
+            "max": 18.700000047683716
+          },
+          "intervalMs": {
+            "count": 154,
+            "median": 16.699999999999818,
+            "p95": 16.799999999999272,
+            "max": 33.29999999999927
+          },
+          "physicsMs": {
+            "count": 154,
+            "median": 12.899999976158142,
+            "p95": 15.200000047683716,
+            "max": 16.5
+          },
+          "renderMs": {
+            "count": 154,
+            "median": 1,
+            "p95": 1.7999999523162842,
+            "max": 4.5
+          },
+          "recordMs": {
+            "count": 154,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.10000002384185791
+          },
+          "metricsMs": {
+            "count": 154,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 154,
+            "median": 0,
+            "p95": 0.19999992847442627,
+            "max": 0.30000007152557373
+          },
+          "steps": {
+            "count": 154,
+            "median": 2,
+            "p95": 3,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.8169776504593756
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 2.110416666666659,
+            "center": [
+              4.6957433171849425,
+              0.10211662452967447,
+              0.22532666707274507
+            ],
+            "peakDeformation": 0.017069309020007358
+          },
+          "frames": 177,
+          "frameMs": {
+            "count": 177,
+            "median": 14.600000023841858,
+            "p95": 16.200000047683716,
+            "max": 16.699999928474426
+          },
+          "intervalMs": {
+            "count": 177,
+            "median": 16.69999999999891,
+            "p95": 16.799999999999272,
+            "max": 50
+          },
+          "physicsMs": {
+            "count": 177,
+            "median": 13.200000047683716,
+            "p95": 14.600000023841858,
+            "max": 15
+          },
+          "renderMs": {
+            "count": 177,
+            "median": 1.1999999284744263,
+            "p95": 1.8000000715255737,
+            "max": 2.399999976158142
+          },
+          "recordMs": {
+            "count": 177,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.10000002384185791
+          },
+          "metricsMs": {
+            "count": 177,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 177,
+            "median": 0,
+            "p95": 0.20000004768371582,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 177,
+            "median": 2,
+            "p95": 3,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 1,
+            "median": 53,
+            "p95": 53,
+            "max": 53
+          },
+          "realTimeRatio": 0.7074338517922564
+        }
+      ],
+      "replay": {
+        "clock": "1.57 / 2.11 s",
+        "flex": "Flex RMS 8.64 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.036 N",
+        "stall": "25%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "dart-paper",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.072222222222219,
+            "center": [
+              5.132149316951581,
+              0.10007275225637331,
+              -0.1217658089781925
+            ],
+            "peakDeformation": 0.004773360420553019
+          },
+          "frames": 210,
+          "frameMs": {
+            "count": 210,
+            "median": 23.299999952316284,
+            "p95": 24.300000071525574,
+            "max": 24.899999976158142
+          },
+          "intervalMs": {
+            "count": 210,
+            "median": 16.700000000000728,
+            "p95": 33.400000000001455,
+            "max": 50
+          },
+          "physicsMs": {
+            "count": 210,
+            "median": 22.600000023841858,
+            "p95": 23.600000023841858,
+            "max": 24.09999990463257
+          },
+          "renderMs": {
+            "count": 210,
+            "median": 0.6000000238418579,
+            "p95": 0.8000000715255737,
+            "max": 1
+          },
+          "recordMs": {
+            "count": 210,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "metricsMs": {
+            "count": 210,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.3999999761581421
+          },
+          "deformationMs": {
+            "count": 210,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 210,
+            "median": 1,
+            "p95": 2,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.22653698891259838
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.072222222222219,
+            "center": [
+              5.132149316951581,
+              0.10007275225637331,
+              -0.1217658089781925
+            ],
+            "peakDeformation": 0.004773360420553019
+          },
+          "frames": 302,
+          "frameMs": {
+            "count": 302,
+            "median": 14.200000047683716,
+            "p95": 24.200000047683716,
+            "max": 30.899999976158142
+          },
+          "intervalMs": {
+            "count": 302,
+            "median": 16.700000000000728,
+            "p95": 33.400000000001455,
+            "max": 33.400000000001455
+          },
+          "physicsMs": {
+            "count": 302,
+            "median": 13.600000023841858,
+            "p95": 23.399999976158142,
+            "max": 30.100000023841858
+          },
+          "renderMs": {
+            "count": 302,
+            "median": 0.6000000238418579,
+            "p95": 0.7999999523162842,
+            "max": 1
+          },
+          "recordMs": {
+            "count": 302,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.10000002384185791
+          },
+          "metricsMs": {
+            "count": 302,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.3999999761581421
+          },
+          "deformationMs": {
+            "count": 302,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 302,
+            "median": 1,
+            "p95": 2,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.18866854748679757
+        }
+      ],
+      "replay": {
+        "clock": "1.04 / 1.07 s",
+        "flex": "Flex RMS 1.27 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.019 N",
+        "stall": "33%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "legacy-tissue",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 6.391666666666007,
+            "center": [
+              3.8889542927377123,
+              0.02377080773729048,
+              17.145638258396048
+            ],
+            "peakDeformation": 0.013129271257403879
+          },
+          "frames": 875,
+          "frameMs": {
+            "count": 875,
+            "median": 12.799999952316284,
+            "p95": 13.800000071525574,
+            "max": 14.600000023841858
+          },
+          "intervalMs": {
+            "count": 875,
+            "median": 16.69999999999709,
+            "p95": 16.799999999995634,
+            "max": 33.400000000001455
+          },
+          "physicsMs": {
+            "count": 875,
+            "median": 12.300000071525574,
+            "p95": 13.399999976158142,
+            "max": 13.600000023841858
+          },
+          "renderMs": {
+            "count": 875,
+            "median": 0.3999999761581421,
+            "p95": 0.5999999046325684,
+            "max": 0.8999999761581421
+          },
+          "recordMs": {
+            "count": 875,
+            "median": 0,
+            "p95": 0,
+            "max": 0.10000002384185791
+          },
+          "metricsMs": {
+            "count": 875,
+            "median": 0,
+            "p95": 0,
+            "max": 0.10000002384185791
+          },
+          "deformationMs": {
+            "count": 875,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 875,
+            "median": 2,
+            "p95": 2,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.4378003812915515
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 6.391666666666007,
+            "center": [
+              3.8889542927377123,
+              0.02377080773729048,
+              17.145638258396048
+            ],
+            "peakDeformation": 0.013129271257403879
+          },
+          "frames": 1005,
+          "frameMs": {
+            "count": 1005,
+            "median": 13.399999976158142,
+            "p95": 15.100000023841858,
+            "max": 18.200000047683716
+          },
+          "intervalMs": {
+            "count": 1005,
+            "median": 16.69999999999709,
+            "p95": 16.70000000001164,
+            "max": 33.400000000001455
+          },
+          "physicsMs": {
+            "count": 1005,
+            "median": 12.799999952316284,
+            "p95": 13.800000071525574,
+            "max": 16.600000023841858
+          },
+          "renderMs": {
+            "count": 1005,
+            "median": 0.5,
+            "p95": 1.399999976158142,
+            "max": 2.899999976158142
+          },
+          "recordMs": {
+            "count": 1005,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.19999992847442627
+          },
+          "metricsMs": {
+            "count": 1005,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "deformationMs": {
+            "count": 1005,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "steps": {
+            "count": 1005,
+            "median": 2,
+            "p95": 2,
+            "max": 12
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.3812278818242877
+        }
+      ],
+      "replay": {
+        "clock": "3.71 / 6.39 s",
+        "flex": "Flex RMS 7.57 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.011 N",
+        "stall": "66%"
+      },
+      "pauseResumeReset": true
+    },
+    {
+      "name": "dart-tissue",
+      "runs": [
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.337037037037044,
+            "center": [
+              3.7475241876451766,
+              0.09709197990988919,
+              3.598200790529197
+            ],
+            "peakDeformation": 0.006578140637084587
+          },
+          "frames": 1127,
+          "frameMs": {
+            "count": 1127,
+            "median": 16.299999952316284,
+            "p95": 23.799999952316284,
+            "max": 30.700000047683716
+          },
+          "intervalMs": {
+            "count": 1127,
+            "median": 16.69999999999709,
+            "p95": 33.39999999999418,
+            "max": 50
+          },
+          "physicsMs": {
+            "count": 1127,
+            "median": 15.600000023841858,
+            "p95": 23.100000143051147,
+            "max": 29.799999952316284
+          },
+          "renderMs": {
+            "count": 1127,
+            "median": 0.6000000238418579,
+            "p95": 0.8000000715255737,
+            "max": 1.100000023841858
+          },
+          "recordMs": {
+            "count": 1127,
+            "median": 0,
+            "p95": 0,
+            "max": 0.20000004768371582
+          },
+          "metricsMs": {
+            "count": 1127,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.3999999761581421
+          },
+          "deformationMs": {
+            "count": 1127,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.30000007152557373
+          },
+          "steps": {
+            "count": 1127,
+            "median": 1,
+            "p95": 1,
+            "max": 2
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.0630208164215841
+        },
+        {
+          "final": {
+            "status": "landed",
+            "time": 1.337037037037044,
+            "center": [
+              3.7475241876451766,
+              0.09709197990988919,
+              3.598200790529197
+            ],
+            "peakDeformation": 0.006578140637084587
+          },
+          "frames": 1567,
+          "frameMs": {
+            "count": 1567,
+            "median": 25.5,
+            "p95": 32.39999997615814,
+            "max": 41
+          },
+          "intervalMs": {
+            "count": 1567,
+            "median": 33.29999999998836,
+            "p95": 33.40000000000873,
+            "max": 50.10000000000582
+          },
+          "physicsMs": {
+            "count": 1567,
+            "median": 24,
+            "p95": 30.300000071525574,
+            "max": 38.89999997615814
+          },
+          "renderMs": {
+            "count": 1567,
+            "median": 1.3000000715255737,
+            "p95": 2.100000023841858,
+            "max": 3.5
+          },
+          "recordMs": {
+            "count": 1567,
+            "median": 0,
+            "p95": 0.10000002384185791,
+            "max": 0.20000004768371582
+          },
+          "metricsMs": {
+            "count": 1567,
+            "median": 0,
+            "p95": 0.20000004768371582,
+            "max": 0.7000000476837158
+          },
+          "deformationMs": {
+            "count": 1567,
+            "median": 0,
+            "p95": 0.19999992847442627,
+            "max": 0.8999999761581421
+          },
+          "steps": {
+            "count": 1567,
+            "median": 1,
+            "p95": 1,
+            "max": 1
+          },
+          "longTasks": {
+            "count": 0
+          },
+          "realTimeRatio": 0.03234902682298879
+        }
+      ],
+      "replay": {
+        "clock": "1.17 / 1.34 s",
+        "flex": "Flex RMS 1.91 mm · displacement arrows 10× · blue = undeformed reference. Rest layers: teal = 1 · orange = 8+ (material overlap).",
+        "lift": "0.0094 N",
+        "stall": "34%"
+      },
+      "pauseResumeReset": true
+    }
+  ],
+  "errors": []
+}

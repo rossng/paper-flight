@@ -1,0 +1,398 @@
+{
+  "input": "docs/performance/self-collision-paired.json",
+  "tolerance": 1e-12,
+  "results": [
+    {
+      "name": "legacy-paper",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 12,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 848,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "basic-paper",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 1038,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 1256,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 28648,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "dart-paper",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 13332,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 2112,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 104512,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "stable-paper",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 11292,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 1060,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 38480,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "legacy-tissue",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 12,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1068,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 848,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "dart-tissue",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 8292,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 2316,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 2112,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 104512,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "basic-tissue",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 2082,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1428,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 1256,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 28648,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    },
+    {
+      "name": "stable-tissue",
+      "checkpoints": 4,
+      "fields": {
+        "step": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "substeps": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "metrics": {
+          "values": 60,
+          "maxAbsoluteDifference": 0
+        },
+        "peakDeformation": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "selfContact": {
+          "values": 4728,
+          "maxAbsoluteDifference": 0
+        },
+        "positions": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "velocities": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "forces": {
+          "values": 1296,
+          "maxAbsoluteDifference": 0
+        },
+        "plastic": {
+          "values": 1060,
+          "maxAbsoluteDifference": 0
+        },
+        "contactCount": {
+          "values": 4,
+          "maxAbsoluteDifference": 0
+        },
+        "contactSigns": {
+          "values": 38480,
+          "maxAbsoluteDifference": 0
+        }
+      }
+    }
+  ]
+}
