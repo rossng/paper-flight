@@ -1,3 +1,5 @@
+The plane-library task adds six studies (nine full-sheet recipes plus the effective dart), main-screen FOLD downloads and a collection export. See [its findings and validation](PLANE_LIBRARY_REPORT.md) and [source/reuse table](plane-library.md). The earlier performance report is preserved below.
+
 # Self-collision performance and speculative flight
 
 2026-11-12 · `codex/physics-performance` · Apple M5 (10 logical CPUs, 24 GiB), macOS arm64, Node 26.12.1, Chrome 157.0.8103.78.

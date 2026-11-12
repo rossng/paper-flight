@@ -42,7 +42,7 @@ test('Stable locking fold explicitly leaves underlying paper in place',()=>{
 test('reference-sized studies have distinct, symmetric deployed silhouettes',()=>{
  // Approximate published Letter-paper dimensions, not a flight validation.
  const targets=[[.28,.11],[.295,.111],[.17,.125]];
- recipes.forEach((r,i)=>{const p=build(r).panels.flatMap(f=>f.points.map(v=>v.position));const span=Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]));const chord=Math.max(...p.map(v=>v[1]))-Math.min(...p.map(v=>v[1]));assert.ok(Math.abs(chord/targets[i][0]-1)<.05);assert.ok(Math.abs(span/targets[i][1]-1)<.05);assert.ok(Math.abs(Math.max(...p.map(v=>v[2]))+Math.min(...p.map(v=>v[2])))<1e-10);});
+ recipes.slice(0,3).forEach((r,i)=>{const p=build(r).panels.flatMap(f=>f.points.map(v=>v.position));const span=Math.max(...p.map(v=>v[2]))-Math.min(...p.map(v=>v[2]));const chord=Math.max(...p.map(v=>v[1]))-Math.min(...p.map(v=>v[1]));assert.ok(Math.abs(chord/targets[i][0]-1)<.05);assert.ok(Math.abs(span/targets[i][1]-1)<.05);assert.ok(Math.abs(Math.max(...p.map(v=>v[2]))+Math.min(...p.map(v=>v[2])))<1e-10);});
 });
 test('FOLD export does not weld separate paper layers at coincident world positions',()=>{
  const data=exportFold(build(recipes[0],3)),world=data.file_frames[0].vertices_coords,uv=data.vertices_coords;

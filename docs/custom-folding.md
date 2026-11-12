@@ -2,6 +2,8 @@
 
 The existing workbench changes an effective dart mesh. It cannot preserve the identity of a sheet through arbitrary folding, distinguish coincident layers, or describe a locking flap. The new sheet model in `src/folding/` now compiles the supported recipes into a flight mesh using the [flexible flight bridge](folded-flight.md). A future custom editor should author this same model. Changing `createDart` parameters is not sufficient.
 
+The library now includes nine full-sheet studies. See [the expanded source table, reuse basis and download guide](plane-library.md). The three original reference measurements below remain historical fixtures.
+
 ## Executable proof
 
 Open `/folding-study.html` (also linked from the game's help dialog). Choose a design, inspect its fold history, orbit the 3D result, compare the original-sheet crease partition, and export the current state as `.fold`.
