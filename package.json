@@ -10,6 +10,7 @@
     "test": "node --import tsx --test --test-concurrency=2 tests/*.test.ts",
     "benchmark": "node --import tsx tests/benchmark.ts",
     "benchmark:physics": "node --import tsx tests/physics-benchmark.ts",
+    "benchmark:launcher": "node --import tsx tests/launcher-benchmark.ts",
     "benchmark:contact": "node --import tsx tests/self-contact-benchmark.ts",
     "benchmark:performance": "node --import tsx tests/performance-benchmark.ts",
     "benchmark:compare": "node --import tsx tests/compare-performance.ts",

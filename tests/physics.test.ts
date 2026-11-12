@@ -32,7 +32,7 @@ test('aerodynamics is dissipative, winding-invariant, zero at rest, and responds
  assert.ok(coefficients(1.5).cd>coefficients(0.1).cd);
 });
 test('free mesh conserves translation and follows gravity without aerodynamic support',()=>{
- const s=new Simulation({aero:false,gravity:0,height:100});s.launch();for(let i=0;i<60;i++)s.step();
+ const s=new Simulation({aero:false,gravity:0,height:100,launchDuration:0});s.launch();for(let i=0;i<60;i++)s.step();
  assert.ok(Math.abs(s.metrics().distance-3)<1e-6);assert.ok(s.metrics().deformation<1e-7);
  const fall=new Simulation({aero:false,height:100});fall.launch();for(let i=0;i<60;i++)fall.step();
  assert.ok(Math.abs(fall.metrics().altitude-(100-0.5*9.81*0.5**2))<0.01);
@@ -86,7 +86,7 @@ test('paper size and weight set physical mass without shifting release height',(
 });
 test('directional launches follow their chosen heading and elevation without aerodynamics',()=>{
  for(const heading of [-70,0,70]){
-  const speed=7,elevation=16,s=new Simulation({heading,elevation,speed,gravity:0,aero:false,height:100});s.launch();
+  const speed=7,elevation=16,s=new Simulation({heading,elevation,speed,gravity:0,aero:false,height:100,launchDuration:0});s.launch();
   for(let i=0;i<60;i++)s.step();
   const yaw=heading*Math.PI/180,e=elevation*Math.PI/180,c=s.center();
   assert.ok(Math.abs(c[0]-3.5*Math.cos(e)*Math.cos(yaw))<1e-6);
@@ -95,13 +95,13 @@ test('directional launches follow their chosen heading and elevation without aer
  }
 });
 
-test('vertical, backward and inverted pitches set actual attitude without changing launch velocity',()=>{
+test('vertical, backward and inverted pitches set actual attitude and start the elastic launch at rest',()=>{
  for(const pitch of [-180,-135,-90,90,135,180]){
   const s=new Simulation({pitch,speed:6});s.launch();
   const original=sub(s.mesh.rest[s.mesh.nose],s.mesh.rest[s.mesh.tail]),actual=sub(s.positions[s.mesh.nose],s.positions[s.mesh.tail]);
   const a=pitch*Math.PI/180,expected:V3=[Math.cos(a)*original[0]-Math.sin(a)*original[1],Math.sin(a)*original[0]+Math.cos(a)*original[1],original[2]];
   assert.ok(length(sub(actual,expected))<1e-12);
-  assert.deepEqual(s.velocities[0],[6,0,0]);
+  assert.deepEqual(s.velocities[0],[0,0,0]);
   while(s.status==='flying')s.step();
   assert.ok(['landed','finished'].includes(s.status),`pitch ${pitch}: ${s.status}`);
   assert.ok(s.positions.flat().every(Number.isFinite));
@@ -121,7 +121,7 @@ test('flight recording preserves actual solver states and interpolates without m
  const initial=s.positions[0][0];s.step();recording.capture(s);const end=recording.duration;
  assert.equal(recording.frames[0].positions[0],Math.fround(initial));
  const before=s.positions.map(p=>[...p]),velocityBefore=s.velocities.map(v=>[...v]);const frame=recording.sample(end/2)!;
- assert.equal(recording.frames[0].velocities[0],6);
+ assert.equal(recording.frames[0].velocities[0],0);
  assert.ok(Math.abs(frame.velocities[1]-(recording.frames[0].velocities[1]+recording.frames[1].velocities[1])/2)<1e-6);
  assert.ok(Math.abs(frame.center[0]-(recording.frames[0].center[0]+recording.frames[1].center[0])/2)<1e-10);
  frame.positions[0]=999;assert.deepEqual(s.positions,before);assert.notEqual(recording.frames[0].positions[0],999);

@@ -7,14 +7,15 @@ import { createDart, hingeAngle, type PaperMesh } from '../geometry/dart';
 import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynamics';
 import { airVelocity } from './weather';
 import { materialSettings, type MaterialId } from './materials';
+import { RELEASE_DURATION_MS, springVelocityDelta } from './launcher';
 import { dampEdges, limitEdgeStrain, solveHinge, solveLayerTie } from './constraints';
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
 export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export interface Parameters { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'landed'|'finished'|'error';
 export interface Metrics { time:number; speed:number; altitude:number; distance:number; pathLength:number; deformation:number; bend:number; maxStrain:number; force:V3; stallFraction:number; center:V3 }
 export class Simulation {
@@ -56,7 +57,15 @@ export class Simulation {
     this.status='ready';this.time=0;this.pathLength=0;this.peakDeformation=0;this.panels=[];
     this.start=this.center();this.lastCenter=[...this.start];this.trail=[[...this.start]];
   }
-  launch(){this.reset();const yaw=radians(this.parameters.heading),e=radians(this.parameters.elevation),v=this.parameters.speed;this.velocities=this.positions.map(()=>[v*Math.cos(e)*Math.cos(yaw),v*Math.sin(e),v*Math.cos(e)*Math.sin(yaw)]);this.status='flying';}
+  private launchDirection():V3 {
+    const yaw=radians(this.parameters.heading),e=radians(this.parameters.elevation);
+    return [Math.cos(e)*Math.cos(yaw),Math.sin(e),Math.cos(e)*Math.sin(yaw)];
+  }
+  launch(){
+    this.reset();
+    if(this.parameters.launchDuration<=0){const direction=this.launchDirection();this.velocities=this.positions.map(()=>direction.map(d=>d*this.parameters.speed) as V3);}
+    this.status='flying';
+  }
   aeroSettings(time=this.time):AeroSettings {
     return {model:this.parameters.aeroModel,surface:this.surface,enabled:this.parameters.aero,density:this.parameters.density,wind:this.parameters.wind,areaWeights:this.mesh.aeroWeights,
       windAt:this.parameters.gusts||this.parameters.turbulence?position=>airVelocity(this.parameters,time,position):undefined};
@@ -80,21 +89,34 @@ export class Simulation {
     // Explicit aerodynamic damping rate is ~ rho V pi A/m for a 2pi slope.
     // Resolve the fastest vertex mode; extra substeps preserve the 120 Hz outer clock.
     let rate=0;
+    const launchDelta=Math.abs(springVelocityDelta(this.time,FIXED_DT,this.parameters.speed,this.parameters.launchDuration));
     if(this.parameters.aero)for(let i=0;i<this.positions.length;i++){
-      const speed=length(sub(this.velocities[i],airVelocity(this.parameters,this.time,this.positions[i])));
+      // Include the upcoming launcher impulse when estimating the fastest mode.
+      const speed=length(sub(this.velocities[i],airVelocity(this.parameters,this.time,this.positions[i])))+launchDelta;
       rate=Math.max(rate,this.parameters.density*Math.PI*speed*this.tributaryArea[i]*this.invMass[i]);
     }
-    const minimum=this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS;
+    // Resolve at most one degree of spring phase per substep while loaded.
+    // Low initial airspeed alone underestimates the resolution needed as the
+    // load grows and coincident folded layers first open in crosswind.
+    const launchSubsteps=this.parameters.speed!==0&&this.time<this.parameters.launchDuration
+      ?Math.ceil(90*FIXED_DT/this.parameters.launchDuration):0;
+    const minimum=Math.max(this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS,launchSubsteps);
     const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,Math.ceil(FIXED_DT*rate/.8))),dt=FIXED_DT/substeps;
     const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
     const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
     const rigidity=this.mesh.hinges.map(h=>hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1));
     const membraneAlpha=this.membranes.map(t=>membraneAlphas(t,this.material,dt));
+    const direction=this.launchDirection();
     for(let substep=0;substep<substeps;substep++){
       const old=this.oldPositions;
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)old[i][d]=this.positions[i][d];
       for(let i=0;i<this.forces.length;i++){this.forces[i][0]=0;this.forces[i][1]=-this.parameters.gravity*this.mesh.masses[i];this.forces[i][2]=0;}
       this.panels=aerodynamicLoads(this.positions,this.velocities,this.mesh.faces,this.aeroSettings(),this.forces);
+      // Distribute the launcher load by mass: a supported launch with no added
+      // torque or artificial vertex-to-vertex velocity discontinuity. Local
+      // hook/contact stresses are outside this ideal acceleration model.
+      const acceleration=springVelocityDelta(this.time,dt,this.parameters.speed,this.parameters.launchDuration)/dt;
+      if(acceleration)for(let i=0;i<this.forces.length;i++)for(let d=0;d<3;d++)this.forces[i][d]+=this.mesh.masses[i]*acceleration*direction[d];
       for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++){
         this.velocities[i][d]+=dt*this.forces[i][d]*this.invMass[i];
         this.positions[i][d]+=dt*this.velocities[i][d];
