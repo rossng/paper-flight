@@ -67,7 +67,7 @@ The renderer-independent solver uses metres, kilograms, seconds, newtons and rad
 
 XPBD triangle membrane and signed hinge constraints evolve the flexible sheet. Creases have an effective damaged-band width, retained stiffness, yield angle and isotropic hardening. Excess crease rotation produces permanent set during a flight; launch/reset restores the authored shape. Nominal properties are illustrative, not measured paper products.
 
-Overlapping recipe layers use unilateral contact and Coulomb friction. They can slide across triangle boundaries and separate; no tensile glue holds them together. The zero-thickness kinematic folds retain their exact geometry, so contact uses zero-clearance midsurfaces, with sides inferred from local opening and the previous deformed state. This is restricted vertex/triangle contact among initially coplanar material groups, not general continuous self-collision or a certified physical lock. The old bonded-laminate approximation remains an explicit benchmark option.
+Overlapping recipe layers use unilateral contact and Coulomb friction. They can slide across triangle boundaries and separate; no tensile glue holds them together. Additional swept vertex/face and edge/edge contact checks nonadjacent material across the sheet, including the Original dart. The zero-thickness kinematic folds retain their exact geometry, so contact uses zero-clearance midsurfaces, with sides inferred from local opening and the previous deformed state. Initially coincident stacks have no authored ordering, and finite projection sweeps still leave intersections; this is not a collision-free guarantee or a certified physical lock. The old bonded-laminate approximation remains an explicit benchmark option. See [the self-contact findings and measurements](docs/TASK_REPORT.md).
 
 The outer physics clock remains **120 Hz**, with at least three substeps (nine for tissue), increasing when a local aerodynamic damping estimate requires smaller steps. There are 24 alternating constraint sweeps. A near-inextensible strain envelope is a numerical safeguard for the no-tearing game, not a constitutive failure law. Pairwise internal damping preserves pair momentum. There are no flight anchors or attitude controllers. First ground contact or 12 simulated seconds ends the run.
 
@@ -91,7 +91,7 @@ The physics API exposes deformation RMS with body translation and rotation remov
 
 `npm test` covers mesh topology and mass, hinge gradients, aerodynamic dissipation and winding invariance, translation and gravity, deterministic stepping and reset, stiffness coupling, parameter extremes, scaled paper mass and release height, directional release velocities, the new workbench extremes through ground contact, detached replay data, and the custom-folding geometry studies.
 
-The production build and 73 numerical tests pass. This increment was checked in an isolated headless Chrome session for folding, keyboard launch, unrestricted pitch, recorded replay with lift/flex overlays, and a 390 px mobile layout without uncaught runtime errors or horizontal overflow. Earlier baseline checks also covered material selection, pointer launch and pause/reset. These are representative checks, not exhaustive device coverage or physical calibration.
+The production build and 97 numerical tests pass; see [the current self-contact validation](docs/TASK_REPORT.md). Earlier UI increments were checked in an isolated headless Chrome session for folding, keyboard launch, unrestricted pitch, recorded replay with lift/flex overlays, and a 390 px mobile layout without uncaught runtime errors or horizontal overflow. Earlier baseline checks also covered material selection, pointer launch and pause/reset. These are representative checks, not exhaustive device coverage or physical calibration.
 
 Physics remains fixed at 120 Hz with at least three internal substeps, or nine for very light sheets; the aerodynamic damping estimate can increase that count. Device-pixel ratio is capped at 2. Playback can slow under load rather than enlarging the physics timestep. Background-tab time is discarded. A capability message appears if WebGL cannot start.
 
@@ -102,6 +102,7 @@ Physics remains fixed at 120 Hz with at least three internal substeps, or nine f
 | `src/geometry/dart.ts` | Effective dart topology, layers, edge and hinge rest state |
 | `src/physics/constraints.ts`, `membrane.ts`, `sheet-material.ts` | Directional membrane/hinge XPBD, crease plasticity, internal damping |
 | `src/physics/layer-contact.ts` | Sliding unilateral layer contact and Coulomb friction |
+| `src/physics/self-contact.ts` | Swept vertex/face and edge/edge detection, broad phase and unilateral response |
 | `src/physics/aerodynamics.ts`, `lifting-surface.ts` | Exposed quadrature, coupled circulation, separated fallback and baseline polar |
 | `src/physics/simulation.ts` | Free-flight integration, fixed clock, metrics |
 | `src/physics/math.ts` | Renderer-independent vector math |
@@ -121,7 +122,7 @@ Physics remains fixed at 120 Hz with at least three internal substeps, or nine f
 Useful next steps:
 
 1. Calibrate nominal materials, crease hysteresis and aerodynamic response against static deflection tests and measured throws. The analytic lifting-line benchmark is not dart calibration.
-2. Add full layer stacking order, finite-thickness and continuous edge/edge self-contact before arbitrary folded designs or crumpling.
+2. Add authored layer stacking order, finite thickness and a collision-safe fallback for coupled impacts before arbitrary folded designs or crumpling.
 3. Extend the planar lifting-line reduction to sweep/nonplanar vortex geometry and an unsteady wake, while retaining an explicit separated-flow fallback.
 4. Improve numerical convergence and profile performance before moving the solver into a Worker or WASM. Strong flutter, added mass, dynamic stall and general flow shielding need a more complete model.
 
@@ -131,7 +132,7 @@ Project code is provided under the MIT license. Adapted components and dependenc
 
 ## Custom-folding research prototype
 
-Open `/folding-study.html` or follow the link in the game help dialog. Three independent reconstructions (The Basic, Basic Dart, and The Stable) exercise a new material-coordinate model with explicit layer selection. The study supports 3D inspection during animated forward/reverse folds, fold history and FOLD exports. The panels rotate rigidly about the defined creases; this is zero-thickness kinematics, not a contact simulation. The Original dart quick-start uses a grouped dart recipe as its folding illustration while retaining its separate effective flight mesh. Use Fly this design at any step to complete it and launch it in the game. Flight uses the exposed-surface and restricted sliding-contact model documented below; it is not a freeform editor or a continuous self-collision solver. See [the design and findings](docs/custom-folding.md).
+Open `/folding-study.html` or follow the link in the game help dialog. Three independent reconstructions (The Basic, Basic Dart, and The Stable) exercise a new material-coordinate model with explicit layer selection. The study supports 3D inspection during animated forward/reverse folds, fold history and FOLD exports. The panels rotate rigidly about the defined creases; this is zero-thickness kinematics, not a contact simulation. The Original dart quick-start uses a grouped dart recipe as its folding illustration while retaining its separate effective flight mesh. Use Fly this design at any step to complete it and launch it in the game. Flight uses the exposed-surface and contact models documented below; it is not a freeform editor or a certified collision-free solver. See [the design and findings](docs/custom-folding.md).
 
 ## Folded designs and flex review
 

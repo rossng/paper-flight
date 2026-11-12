@@ -2,6 +2,8 @@
 
 Measured locally on 2026-11-12 with Node v26.12.1. Reproduce with `npm test`, `npm run build`, `npm run benchmark:physics` and `npm run benchmark`. [Raw benchmark results](physics-benchmark-results.json) retain the numeric output. These checks validate implementation properties and expose numerical error; they do not calibrate paper flight against measurements.
 
+The measurements below precede the swept self-contact increment. See [the current contact report](TASK_REPORT.md) for crossing regressions, paired penetration/timing measurements and remaining stack-order limitations. Historical flight ranges and timing below have not been remeasured with swept contact enabled.
+
 ## Automated checks
 
 **77 tests pass** after rebasing onto `main` at `411a45b`, up from 54 at checkpoint `2f9fef8`; TypeScript checking and the production Vite build pass. Existing acceptance bounds were retained. The old layer-coupling comparison now explicitly uses `layerModel: 'bonded'`, because default sliding contact intentionally does not apply bonded stiffness multipliers.
@@ -86,4 +88,4 @@ A separate headless Chrome profile used only this worktree's server on port 5174
 
 ## Remaining validation limits
 
-Material constants, effective crease widths/yield angles, Coulomb coefficients, separated-flow coefficients and shielding tolerances need physical measurements. The aerodynamic analytic check covers a planar attached wing; swept low-aspect-ratio paper shapes are a harder regime. Contact is discrete and limited to initially coplanar groups, not finite-thickness continuous self-collision. Game-time membrane strain limiting and finite-sweep contact are approximations with residual error. The implementation is a working increment with these limits exposed, not a calibrated engineering flight predictor.
+Material constants, effective crease widths/yield angles, Coulomb coefficients, separated-flow coefficients and shielding tolerances need physical measurements. The aerodynamic analytic check covers a planar attached wing; swept low-aspect-ratio paper shapes are a harder regime. The later swept-contact increment extends detection beyond initially coplanar groups, but does not supply finite thickness, a consistent initial stack order or a no-intersection guarantee. Game-time membrane strain limiting and finite-sweep contact are approximations with residual error. The implementation is a working increment with these limits exposed, not a calibrated engineering flight predictor.
