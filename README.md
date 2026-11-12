@@ -17,7 +17,9 @@ npm run dev
 Open the URL printed by Vite, normally `http://localhost:5173`. The server only serves application files; all simulation runs in the browser. No account, backend, or API key is needed. Optional Google Fonts typography falls back to system fonts offline.
 
 ```sh
-npm test          # numerical and behavioural regression checks
+npm test          # focused numerical and behavioural regression checks
+npm run test:slow # exhaustive full-flight sweeps only
+npm run test:full # all checks, including full-flight sweeps (used by CI)
 npm run benchmark # repeat the soft / standard / stiff flight measurements
 npm run benchmark:physics # aerodynamic and flexible-solver convergence evidence
 npm run benchmark:performance # warmed, repeated serial solver timings
@@ -27,6 +29,28 @@ npm run preview   # serve the production build
 
 See [the performance report](docs/TASK_REPORT.md) for paired baseline comparisons,
 browser frame measurements, worker scheduling, and launch prediction tradeoffs.
+
+The default tests include the independent high-load collision bounds, ordinary
+tissue fold retention, worker/replay equivalence, launcher behaviour and solver
+invariants. `tests/slow/` holds the full-flight material/weather matrix, compiled
+recipe landings and parameter extremes. Run `npm run test:full` for physics or
+folding changes; CI always runs it. Both suites use at most two test workers.
+Material/weather sweeps are split by design so one file does not serialize the
+entire matrix. Solver resolution and numerical tolerances are unchanged.
+
+Local timing on Node 26.12.1, macOS, with two workers (one run per command):
+
+| Suite | Passing checks | Wall time |
+| --- | ---: | ---: |
+| Original `npm test` | 116 | 80.08 s |
+| Focused `npm test` | 101 | 20.75 s |
+| `npm run test:full` | 120 | 67.05 s |
+
+The full suite retains every original flight scenario. Its count increases
+because launch/translation assertions now run separately from landing checks.
+Uniform-translation checks on compiled meshes use three steps instead of thirty;
+the longer gravity/translation and contact regressions remain. These are local
+suite timings, not CI performance guarantees.
 
 The download also includes a prebuilt `dist/`. To use it without installing Node dependencies, serve it with any static HTTP server, for example:
 

@@ -5,7 +5,6 @@ import {materials,materialSettings} from '../src/physics/materials';
 import {Simulation,DEFAULTS} from '../src/physics/simulation';
 import {aerodynamicLoads} from '../src/physics/aerodynamics';
 import {designMesh} from '../src/folding/design';
-import {launchSpeed} from '../src/physics/launcher';
 import {length,sub,type V3} from '../src/physics/math';
 
 test('weather is deterministic, spatially varying, continuous and calm by default',()=>{
@@ -38,14 +37,6 @@ test('materials change real mass and bending properties, including folded layers
   assert.equal(parameters.stiffness,materials[material].stiffness);assert.equal(parameters.crease,materials[material].crease);
  }
  assert.deepEqual(materialSettings('paper',60),{material:'paper',paperWeight:60,stiffness:(60/80)**3,crease:1});
-});
-
-for(const material of ['tissue','foil','steel'] as const)for(const design of ['legacy','basic','dart','stable'])test(`${material}/${design}: full-speed launch in gusty crosswind stays finite`,()=>{
- const parameters={...DEFAULTS,...materialSettings(material),wind:[0,0,3] as V3,gusts:1.5,turbulence:1};
- const sim=new Simulation(parameters,design==='legacy'?undefined:designMesh(design,parameters));sim.parameters.speed=launchSpeed(100);sim.launch();
- assert.ok(sim.velocities.every(v=>length(v)===0),'elastic launch starts from rest');
- let strain=0;while(sim.status==='flying'){sim.step();strain=Math.max(strain,sim.metrics().maxStrain);}
- assert.equal(sim.status,'landed');assert.ok(sim.positions.flat().every(Number.isFinite));assert.ok(strain<.2,`maximum edge strain ${strain}`);
 });
 
 for(const design of ['legacy','basic','dart','stable'])test(`tissue/${design}: holds its folds through an ordinary launch while remaining flexible`,()=>{

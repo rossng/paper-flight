@@ -58,23 +58,6 @@ test('repeatability and reset restore the identical initial-value problem',()=>{
  s.launch();for(let i=0;i<30;i++)s.step();assert.deepEqual(s.positions,before);
  s.reset();assert.equal(s.time,0);assert.equal(s.status,'ready');assert.equal(s.metrics().speed,0);assert.ok(s.metrics().deformation<1e-12);
 });
-test('representative parameter extremes stay finite through contact, including high-angle stalls',()=>{
- const cases=[
- {speed:3,pitch:-5,stiffness:0.2,crease:0.25,dihedral:0},
- {speed:9,pitch:25,stiffness:0.2,crease:0.25,dihedral:18},
- {speed:9,pitch:-5,stiffness:5,crease:4,dihedral:0},
- {speed:3,pitch:25,stiffness:5,crease:4,dihedral:18},
- {speed:9,pitch:8,stiffness:0.2,crease:4,dihedral:0},
- {speed:9,pitch:25,stiffness:5,crease:0.25,dihedral:18},
- ];
- let sawStall=false;
- for(const parameters of cases){const s=new Simulation(parameters);s.launch();let steps=0;
- while(s.status==='flying'&&steps++<1442){s.step();const m=s.metrics();assert.ok(Number.isFinite(m.deformation));assert.ok(m.maxStrain<0.12);assert.ok(m.speed<25);sawStall ||=m.stallFraction>0.5;}
- assert.ok(['landed','finished'].includes(s.status));
- }
- assert.ok(sawStall);
-});
-
 test('paper size and weight set physical mass without shifting release height',()=>{
  for(const size of [0.85,1,1.15])for(const paperWeight of [60,80,110]){
   const s=new Simulation({size,paperWeight,span:1.2});
@@ -102,19 +85,8 @@ test('vertical, backward and inverted pitches set actual attitude and start the 
   const a=pitch*Math.PI/180,expected:V3=[Math.cos(a)*original[0]-Math.sin(a)*original[1],Math.sin(a)*original[0]+Math.cos(a)*original[1],original[2]];
   assert.ok(length(sub(actual,expected))<1e-12);
   assert.deepEqual(s.velocities[0],[0,0,0]);
-  while(s.status==='flying')s.step();
-  assert.ok(['landed','finished'].includes(s.status),`pitch ${pitch}: ${s.status}`);
-  assert.ok(s.positions.flat().every(Number.isFinite));
  }
 });
-test('workbench extremes complete finite directional flights',()=>{
- for(const [size,paperWeight,span,heading] of [[0.85,60,0.7,-70],[1.15,110,1.35,70]]){
-  const s=new Simulation({size,paperWeight,span,heading,stiffness:(paperWeight/80)**3,speed:8,elevation:16,pitch:23});s.launch();
-  while(s.status==='flying')s.step();
-  assert.equal(s.status,'landed');assert.ok(s.metrics().distance>1);assert.ok(s.positions.flat().every(Number.isFinite));
- }
-});
-
 test('flight recording preserves actual solver states and interpolates without mutating them',async()=>{
  const {FlightRecording}=await import('../src/rendering/flight-recording');
  const s=new Simulation();s.launch();const recording=new FlightRecording();recording.capture(s);
