@@ -7,15 +7,15 @@ import { length, type V3 } from '../physics/math';
 import { materials } from '../physics/materials';
 import { airVelocity } from '../physics/weather';
 import { aerodynamicLoads, centerOfLift } from '../physics/aerodynamics';
-import { liftSummary, type LiftSummary } from '../physics/flight-loads';
-export interface ViewOptions { heat:boolean; wire:boolean; forces:boolean; velocity:boolean; follow:boolean; flex:boolean; flexScale:number; layers:boolean; massCenter:boolean; liftCenter:boolean; liftMeter:boolean }
+import { liftSummary, stallSummary, type LiftSummary, type StallSummary } from '../physics/flight-loads';
+export interface ViewOptions { heat:boolean; wire:boolean; forces:boolean; velocity:boolean; follow:boolean; flex:boolean; flexScale:number; layers:boolean; massCenter:boolean; liftCenter:boolean; liftMeter:boolean; stallMeter:boolean }
 class PlaneView {
  environment=landscape(); scene=new THREE.Scene(); geometry=new THREE.BufferGeometry(); paper:THREE.Mesh;
  wire:THREE.LineSegments; folds:THREE.LineSegments; path:THREE.Line;
  flexArrows:THREE.ArrowHelper[]=[];referenceWire:THREE.LineSegments;flexRms=0;
  arrows:THREE.ArrowHelper[]=[]; velocity=new THREE.ArrowHelper();
  massMarker=this.makeCenterMarker('MASS','#2879bd',1);liftMarker=this.makeCenterMarker('LIFT','#a640a5',-1);
- liftCenter?:V3;liftReading?:LiftSummary;private analyzedFrame?:FlightFrame;
+ liftCenter?:V3;liftReading?:LiftSummary;stallReading?:StallSummary;private analyzedFrame?:FlightFrame;
  private sun=new THREE.DirectionalLight(0xffffff,3.2);
  constructor(public simulation:Simulation,public accent:number){
   this.scene.background=new THREE.Color('#c5dfdb');this.scene.fog=new THREE.Fog('#c5dfdb',35,110);this.scene.add(this.environment);
@@ -58,10 +58,10 @@ class PlaneView {
   this.sun.shadow.radius=Math.min(8,1+height*1.8);
   this.sun.shadow.intensity=materials[s.parameters.material].opacity*.85/(1+height*.12);
   this.massMarker.visible=options.massCenter&&!!frame;this.massMarker.position.set(...(frame?.center??s.center()));
-  if((options.liftCenter||options.liftMeter)&&frame&&this.analyzedFrame!==frame){
+  if((options.liftCenter||options.liftMeter||options.stallMeter)&&frame&&this.analyzedFrame!==frame){
    const velocities=positions.map((_,i)=>[frame.velocities[i*3],frame.velocities[i*3+1],frame.velocities[i*3+2]] as V3);
    const panels=aerodynamicLoads(positions,velocities,s.mesh.faces,s.aeroSettings(frame.time),positions.map(()=>[0,0,0] as V3));
-   this.liftCenter=centerOfLift(panels);this.liftReading=liftSummary(panels,s.mesh.masses.reduce((sum,mass)=>sum+mass,0),s.parameters.gravity);this.analyzedFrame=frame;
+   this.stallReading=stallSummary(panels);this.liftCenter=centerOfLift(panels);this.liftReading=liftSummary(panels,s.mesh.masses.reduce((sum,mass)=>sum+mass,0),s.parameters.gravity);this.analyzedFrame=frame;
   }
   this.liftMarker.visible=options.liftCenter&&!!frame&&!!this.liftCenter;if(this.liftCenter)this.liftMarker.position.set(...this.liftCenter);
   const sock=this.environment.getObjectByName('windsock');if(sock){const wind=new THREE.Vector3(...airVelocity(s.parameters,frame?.time??s.time,[0,2.9,-3.3]));if(wind.length()<.05)wind.set(0,-1,0);wind.normalize();sock.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),wind);sock.position.set(0,2.9,-3.3).addScaledVector(wind,.4);}
@@ -83,7 +83,7 @@ class PlaneView {
 }
 export class Viewport {
  renderer:THREE.WebGLRenderer;camera=new THREE.PerspectiveCamera(40,1,0.005,250);controls:OrbitControls;
- views:PlaneView[]=[];options:ViewOptions={heat:false,wire:false,forces:false,velocity:false,follow:true,flex:false,flexScale:10,layers:false,massCenter:false,liftCenter:false,liftMeter:false};
+ views:PlaneView[]=[];options:ViewOptions={heat:false,wire:false,forces:false,velocity:false,follow:true,flex:false,flexScale:10,layers:false,massCenter:false,liftCenter:false,liftMeter:false,stallMeter:false};
  mode:'workbench'|'throw'='workbench';
  reviewing=false;reviewFollow=false;reviewFrame?:FlightFrame;private reviewDecor?:THREE.Group;private reviewTrailMaterial?:THREE.ShaderMaterial;
  private actual=new THREE.PerspectiveCamera(40,1,0.005,250);private observer:ResizeObserver;
@@ -116,7 +116,7 @@ export class Viewport {
   const label=(text:string,point:typeof trail[number],color:string)=>{const c=document.createElement('canvas');c.width=256;c.height=96;const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.fillRect(0,0,256,96);ctx.fillStyle='#243b49';ctx.font='bold 35px sans-serif';ctx.textAlign='center';ctx.fillText(text,128,61);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));sprite.position.set(point[0],point[1]+0.45,point[2]);sprite.scale.set(1.1,0.41,1);decor.add(sprite);};
   label('TAKEOFF',trail[0],'#ffda55');label(view.simulation.status==='landed'?'LANDING':'END',trail.at(-1)!,'#ffad84');this.fitReview();
  }
- endReview(){this.reviewing=false;this.reviewFollow=false;this.options.flex=false;this.options.layers=false;this.options.massCenter=false;this.options.liftCenter=false;this.options.liftMeter=false;this.reviewFrame=undefined;this.reviewDecor=undefined;this.reviewTrailMaterial=undefined;this.controls.enablePan=false;this.controls.maxDistance=40;this.controls.maxPolarAngle=Math.PI*0.94;this.controls.enabled=this.mode==='workbench';this.home();}
+ endReview(){this.reviewing=false;this.reviewFollow=false;this.options.flex=false;this.options.layers=false;this.options.massCenter=false;this.options.liftCenter=false;this.options.liftMeter=false;this.options.stallMeter=false;this.reviewFrame=undefined;this.reviewDecor=undefined;this.reviewTrailMaterial=undefined;this.controls.enablePan=false;this.controls.maxDistance=40;this.controls.maxPolarAngle=Math.PI*0.94;this.controls.enabled=this.mode==='workbench';this.home();}
  fitReview(){
   if(!this.reviewing)return;this.reviewFollow=false;const bounds=new THREE.Box3().setFromPoints(this.views[0].simulation.trail.map(p=>new THREE.Vector3(...p))),target=bounds.getCenter(new THREE.Vector3()),radius=Math.max(0.8,bounds.getSize(new THREE.Vector3()).length()/2);
   const aspect=this.element.clientWidth/this.element.clientHeight,angle=Math.min(THREE.MathUtils.degToRad(20),Math.atan(Math.tan(THREE.MathUtils.degToRad(20))*aspect));

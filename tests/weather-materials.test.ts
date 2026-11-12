@@ -47,3 +47,12 @@ for(const material of ['tissue','foil','steel'] as const)for(const design of ['l
  let strain=0;while(sim.status==='flying'){sim.step();strain=Math.max(strain,sim.metrics().maxStrain);}
  assert.equal(sim.status,'landed');assert.ok(sim.positions.flat().every(Number.isFinite));assert.ok(strain<.2,`maximum edge strain ${strain}`);
 });
+
+for(const design of ['legacy','basic','dart','stable'])test(`tissue/${design}: holds its folds through an ordinary launch while remaining flexible`,()=>{
+ const parameters={...DEFAULTS,...materialSettings('tissue'),speed:7.15,pitch:15,elevation:11.8};
+ const sim=new Simulation(parameters,design==='legacy'?undefined:designMesh(design,parameters));sim.launch();
+ let peak=0;while(sim.status==='flying'&&sim.time<.35){sim.step();peak=Math.max(peak,sim.deformation().rms);}
+ assert.equal(sim.status,'flying');assert.ok(peak<.035,`early collapse: ${peak*1000} mm RMS`);
+ assert.ok(peak>.001,`expected visible flex, got ${peak*1000} mm RMS`);
+ assert.ok(Math.max(...sim.mesh.hinges.map(h=>Math.abs(h.plasticOffset??0)))<.1,'launch must not permanently crumple the creases');
+});

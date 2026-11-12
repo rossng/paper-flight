@@ -10,7 +10,9 @@ export interface SheetMaterial {
 }
 const properties:Record<MaterialId,Omit<SheetMaterial,'thickness'>>={
   paper:{density:800,youngMD:4e9,youngCD:2e9,shear:1e9,poisson:.25,creaseWidth:.001,creaseRetention:.2,yieldAngle:.35,hardening:.08,friction:.45},
-  tissue:{density:300,youngMD:.25e9,youngCD:.12e9,shear:.06e9,poisson:.2,creaseWidth:.001,creaseRetention:.12,yieldAngle:.25,hardening:.03,friction:.5},
+  // Resilient craft-tissue preset: stays light and flexible while retaining folds.
+  // Illustrative game tuning, not a measured tissue product.
+  tissue:{density:300,youngMD:3e9,youngCD:1.44e9,shear:.72e9,poisson:.2,creaseWidth:.001,creaseRetention:.4,yieldAngle:.9,hardening:.25,friction:.5},
   foil:{density:2700,youngMD:69e9,youngCD:69e9,shear:69e9/(2*1.33),poisson:.33,creaseWidth:.0005,creaseRetention:.025,yieldAngle:.08,hardening:.02,friction:.3},
   steel:{density:7850,youngMD:200e9,youngCD:200e9,shear:200e9/(2*1.3),poisson:.3,creaseWidth:.003,creaseRetention:.3,yieldAngle:.04,hardening:.1,friction:.35},
 };

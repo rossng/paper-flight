@@ -14,6 +14,21 @@ The high-angle small Stable still needs the numerical strain envelope; residual 
 
 The rebased branch retains the independent 0–11 m/s launcher, release-height control, translucent tissue, illustrated material picker, shadows, non-overlapping runway, fixed-width Folded Dart controls and compact replay tools. All twelve special-material/design combinations passed full-speed 11 m/s gusty-crosswind launches. Browser checks on port 5174 verified an 11 m/s launch using the coupled/contact defaults, replay lift values against recomputed coupled panel loads, scrubbing/playback, corner-meter dismissal, mobile layout, model switching and Flat/Shallow/Steep controls. The build passes. The numerical benchmark tables below remain the original physics-branch measurements; the rebase did not change their solver settings.
 
+## Main integration: stall readout and resilient tissue
+
+After fast-forwarding the physics branch into main, **83 tests pass** and the production build passes. The stall readout is checked for exposed-area weighting, hidden patches, opposing incidence signs, no-load handling and increasing classification at high incidence. Browser checks confirm replay recomputation, independent corner readouts, mobile layout and reset.
+
+The 18 gsm tissue preset now uses 3/1.44 GPa directional moduli and 0.72 GPa shear modulus, crease retention 0.4, yield angle 0.9 rad and hardening 0.25. Density, thickness and rendered translucency are unchanged. These are game-tuned craft-tissue properties, not product measurements. Ordinary 7.15 m/s launches at 15° pitch and 11.8° elevation gave:
+
+| Design | Flight s | Range m | Peak flex mm |
+| --- | ---: | ---: | ---: |
+| Original dart | 4.988 | 5.578 | 11.32 |
+| Basic | 1.794 | 2.884 | 18.74 |
+| Folded Dart | 1.581 | 3.179 | 4.74 |
+| Stable | 1.761 | 2.100 | 17.77 |
+
+All landed without permanent crease deformation in these trials. Added regressions bound early deformation and permanent crease set on all four designs; the full-speed gusty-crosswind tests also pass. A browser throw of the Original tissue dart reproduced 5.578 m range and 11.32 mm peak flex, with its 18 gsm weight and 0.7 opacity retained. The remaining numerical and calibration limits below still apply.
+
 ## Aerodynamic convergence
 
 An elliptic wing has span 2 m, root chord 0.4 m, speed 8 m/s and incidence 0.05 rad. The comparison uses `CL = 2 pi alpha / (1 + 2/AR)` and `CDi = CL²/(pi AR)`, with the discretized area for AR. This tests the circulation kernel in an attached, planar reference case.
