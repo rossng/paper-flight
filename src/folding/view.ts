@@ -12,11 +12,13 @@ export class FoldingView {
  private paper=new THREE.Group();private sequence?:FoldSequence;private radius=.25;
  private target=new THREE.Vector3();private moved=false;private pointers=new Map<number,{x:number;y:number}>();
  private observer:ResizeObserver;
+ private needsRender=true;
  constructor(readonly element:HTMLElement){
   this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor(0,0);element.append(this.renderer.domElement);
   this.renderer.domElement.setAttribute('aria-label','3D folding paper. Drag to orbit, scroll or pinch to zoom. Tap to make the next fold.');
   this.scene.add(new THREE.HemisphereLight(0xffffff,0x65887e,2.4));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(-.5,.7,1);this.scene.add(light,this.paper);
   this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.enablePan=false;this.controls.minDistance=.18;this.controls.maxDistance=2;
+  this.controls.addEventListener('change',()=>{this.needsRender=true;});
   this.camera.position.set(0,0,.75);
   // Pointer travel distinguishes inspecting the model from tapping to fold.
   element.addEventListener('pointerdown',e=>{if(!this.pointers.size)this.moved=false;this.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(this.pointers.size>1)this.moved=true;},true);
@@ -38,14 +40,16 @@ export class FoldingView {
   if(first)this.home();
  }
  home(){
+  this.needsRender=true;
   const halfFov=THREE.MathUtils.degToRad(this.camera.fov/2),angle=Math.min(halfFov,Math.atan(Math.tan(halfFov)*this.camera.aspect));
   // Clear any remaining orbit momentum before restoring the sheet-normal view.
   const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();
   this.controls.target.copy(this.target);this.camera.position.copy(this.target).add(new THREE.Vector3(0,0,this.radius/Math.sin(angle)*1.05));this.controls.update();this.controls.enableDamping=damping;
  }
- private resize(){const w=this.element.clientWidth,h=this.element.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();}
+ private resize(){const w=this.element.clientWidth,h=this.element.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.needsRender=true;}
  draw(progress:number,size:number,gsm:number,active?:number,materialId:MaterialId='paper'){
   if(!this.sequence)return;
+  this.needsRender=true;
   this.paper.traverse(o=>{const mesh=o as THREE.Mesh;mesh.geometry?.dispose();if(mesh.material)(Array.isArray(mesh.material)?mesh.material:[mesh.material]).forEach(m=>m.dispose());});this.paper.clear();this.paper.scale.setScalar(size);
   const state=this.sequence.sample(progress),surface=materials[materialId];
   state.panels.forEach((panel,i)=>{
@@ -68,5 +72,9 @@ export class FoldingView {
    if(crease.length>1){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(crease),new THREE.LineBasicMaterial({color:0xee7845,depthTest:false,depthWrite:false,toneMapped:false}));line.renderOrder=5;this.paper.add(line);}
   }
  }
- render(){this.controls.update();this.renderer.render(this.scene,this.camera);}
+ render(){
+  const moving=this.controls.update();
+  if(!moving&&!this.needsRender)return;
+  this.renderer.render(this.scene,this.camera);this.needsRender=false;
+ }
 }
