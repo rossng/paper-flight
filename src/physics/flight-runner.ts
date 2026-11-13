@@ -2,7 +2,10 @@ import { FixedClock, FRAME_PHYSICS_BUDGET_MS, isActiveStatus, type Simulation, t
 import { FlightRecording } from '../rendering/flight-recording';
 import { applyFlightState, type FlightState, type FlightResponse } from './flight-messages';
 
-export const FLIGHT_LOOKAHEAD=.25;
+/** Seconds the worker may compute ahead of the display. Lead built while a
+ * phase runs faster than real time carries playback through slower ones
+ * (launch stroke, impact) at an even pace. */
+export const FLIGHT_LOOKAHEAD=1;
 export const PREPARE_DELAY_MS=180;
 export type FlightWorkerPort=Pick<Worker,'postMessage'|'onmessage'|'onmessageerror'|'onerror'|'terminate'>;
 export const createFlightWorker=():FlightWorkerPort=>new Worker(new URL('./flight-worker.ts',import.meta.url),{type:'module'});

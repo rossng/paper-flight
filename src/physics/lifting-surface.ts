@@ -1,5 +1,5 @@
 import type { Face, PaperMesh } from '../geometry/dart';
-import { add, sub, scale, dot, cross, length, unit, clamp, type V3 } from './math';
+import { add, sub, scale, dot, cross, unit, clamp, type V3 } from './math';
 import type { AeroSettings, PanelLoad } from './aerodynamics';
 
 export interface SurfacePatch { face:number; weights:V3; fraction:number; station:number }
@@ -61,90 +61,136 @@ export function solveLiftingLine(boundaries:number[],chords:number[],speeds:numb
   return {circulation,downwash:influence.map(row=>row.reduce((sum,d,j)=>sum+d*circulation[j],0))};
 }
 
+// Reused spatial-hash storage: bucket heads, and chained (face, next) entries.
+const HASH_SIZE=4096;
+const hashHead=new Int32Array(HASH_SIZE);
+let hashFace=new Int32Array(4096),hashNext=new Int32Array(4096),faceGeometry=new Float64Array(0);
+const cellHash=(x:number,y:number,z:number)=>(Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791))&(HASH_SIZE-1);
 /** Dynamic near-coplanar shielding; count material panels, not triangulation faces.
- * A small spatial hash avoids an all-pairs query. No rest-state exposure cache. */
+ * A small spatial hash avoids an all-pairs query. No rest-state exposure cache.
+ * Hash collisions only add candidates to the exact geometric test below. */
 function exposureQuery(p:V3[],faces:Face[],surface:LiftingSurface) {
-  const cell=Math.max(.015,surface.span/6),gap=surface.shieldingDistance,grid=new Map<string,number[]>();
-  const key=(x:number,y:number,z:number)=>`${x},${y},${z}`;
+  const cell=Math.max(.008,surface.span/16),gap=surface.shieldingDistance,faceOwners=surface.owners;
   // Deformed face geometry is invariant across this evaluation's patch queries,
   // not across substeps: peeling/sliding and replay always rebuild this cache.
-  const geometry=faces.map(([ia,ib,ic])=>{
-    const a=p[ia],b=p[ib],c=p[ic],ab=sub(b,a),ac=sub(c,a);
-    const aa=dot(ab,ab),bb=dot(ac,ac),cc=dot(ab,ac);
-    return {a,ab,ac,normal:unit(cross(ab,ac)),aa,bb,cc,den:aa*bb-cc*cc};
-  });
+  // Per face: a, ab, ac, unit normal, |ab|^2, |ac|^2, ab.ac, Gram determinant.
+  if(faceGeometry.length<faces.length*16)faceGeometry=new Float64Array(faces.length*16);
+  const g=faceGeometry;
+  hashHead.fill(-1);let entries=0;
   const overflow:number[]=[];
-  faces.forEach(([ia,ib,ic],fi)=>{
-    const a=p[ia],b=p[ib],c=p[ic];
+  for(let fi=0;fi<faces.length;fi++){
+    const face=faces[fi],a=p[face[0]],b=p[face[1]],c=p[face[2]],o=16*fi;
+    const abx=b[0]-a[0],aby=b[1]-a[1],abz=b[2]-a[2],acx=c[0]-a[0],acy=c[1]-a[1],acz=c[2]-a[2];
+    const nx=aby*acz-abz*acy,ny=abz*acx-abx*acz,nz=abx*acy-aby*acx,inverse=1/Math.max(Math.hypot(nx,ny,nz),1e-12);
+    const aa=abx*abx+aby*aby+abz*abz,bb=acx*acx+acy*acy+acz*acz,cc=abx*acx+aby*acy+abz*acz;
+    g[o]=a[0];g[o+1]=a[1];g[o+2]=a[2];g[o+3]=abx;g[o+4]=aby;g[o+5]=abz;g[o+6]=acx;g[o+7]=acy;g[o+8]=acz;
+    g[o+9]=nx*inverse;g[o+10]=ny*inverse;g[o+11]=nz*inverse;g[o+12]=aa;g[o+13]=bb;g[o+14]=cc;g[o+15]=aa*bb-cc*cc;
     const lx=Math.floor((Math.min(a[0],b[0],c[0])-gap)/cell),hx=Math.floor((Math.max(a[0],b[0],c[0])+gap)/cell);
     const ly=Math.floor((Math.min(a[1],b[1],c[1])-gap)/cell),hy=Math.floor((Math.max(a[1],b[1],c[1])+gap)/cell);
     const lz=Math.floor((Math.min(a[2],b[2],c[2])-gap)/cell),hz=Math.floor((Math.max(a[2],b[2],c[2])+gap)/cell);
-    if((hx-lx+1)*(hy-ly+1)*(hz-lz+1)>512){overflow.push(fi);return;}
+    const cells=(hx-lx+1)*(hy-ly+1)*(hz-lz+1);
+    if(!(cells<=512)){overflow.push(fi);continue;}
+    if(entries+cells>hashFace.length){
+      const size=Math.max(hashFace.length*2,entries+cells),nextFace=new Int32Array(size),nextLink=new Int32Array(size);
+      nextFace.set(hashFace);nextLink.set(hashNext);hashFace=nextFace;hashNext=nextLink;
+    }
     for(let x=lx;x<=hx;x++)for(let y=ly;y<=hy;y++)for(let z=lz;z<=hz;z++){
-      const k=key(x,y,z),bucket=grid.get(k);if(bucket)bucket.push(fi);else grid.set(k,[fi]);
+      const h=cellHash(x,y,z);hashFace[entries]=fi;hashNext[entries]=hashHead[h];hashHead[h]=entries++;
     }
-  });
-  const owners=new Set<number>();
+  }
+  const owners:number[]=[];
+  let px0=0,py0=0,pz0=0,ox=0,oy=0,oz=0;
+  const shield=(j:number)=>{
+    const other=faceOwners?.[j]??j,o=16*j;
+    if(owners.includes(other)||Math.abs(ox*g[o+9]+oy*g[o+10]+oz*g[o+11])<.98)return;
+    const px=px0-g[o],py=py0-g[o+1],pz=pz0-g[o+2],den=g[o+15];
+    if(Math.abs(px*g[o+9]+py*g[o+10]+pz*g[o+11])>gap||den<1e-20)return;
+    const dab=px*g[o+3]+py*g[o+4]+pz*g[o+5],dac=px*g[o+6]+py*g[o+7]+pz*g[o+8];
+    const u=(dab*g[o+13]-dac*g[o+14])/den,v=(dac*g[o+12]-dab*g[o+14])/den;
+    if(u>=-1e-8&&v>=-1e-8&&u+v<=1+1e-8)owners.push(other);
+  };
   return (point:V3,fi:number)=>{
-    owners.clear();owners.add(surface.owners?.[fi]??fi);
-    const bucket=grid.get(key(Math.floor(point[0]/cell),Math.floor(point[1]/cell),Math.floor(point[2]/cell)));
-    for(let pass=0;pass<2;pass++){
-      const candidates=pass===0?bucket:overflow;if(!candidates)continue;
-      for(const j of candidates){
-        const other=surface.owners?.[j]??j,g=geometry[j];
-        if(owners.has(other)||Math.abs(dot(geometry[fi].normal,g.normal))<.98)continue;
-        const px=point[0]-g.a[0],py=point[1]-g.a[1],pz=point[2]-g.a[2];
-        if(Math.abs(px*g.normal[0]+py*g.normal[1]+pz*g.normal[2])>gap||g.den<1e-20)continue;
-        const dab=px*g.ab[0]+py*g.ab[1]+pz*g.ab[2],dac=px*g.ac[0]+py*g.ac[1]+pz*g.ac[2];
-        const u=(dab*g.bb-dac*g.cc)/g.den,v=(dac*g.aa-dab*g.cc)/g.den;
-        if(u>=-1e-8&&v>=-1e-8&&u+v<=1+1e-8)owners.add(other);
-      }
-    }
-    return 1/owners.size;
+    owners.length=0;owners.push(faceOwners?.[fi]??fi);
+    const own=16*fi;ox=g[own+9];oy=g[own+10];oz=g[own+11];px0=point[0];py0=point[1];pz0=point[2];
+    for(let e=hashHead[cellHash(Math.floor(px0/cell),Math.floor(py0/cell),Math.floor(pz0/cell))];e>=0;e=hashNext[e])shield(hashFace[e]);
+    for(let k=0;k<overflow.length;k++)shield(overflow[k]);
+    return 1/owners.length;
   };
 }
 
+let patchScratch=new Float64Array(0),stripScratch=new Float64Array(0),normalScratch=new Float64Array(0);
 export function liftingSurfaceLoads(positions:V3[],velocities:V3[],faces:Face[],settings:AeroSettings,out:V3[]):PanelLoad[] {
-  const surface=settings.surface!,n=surface.boundaries.length-1;
+  const surface=settings.surface!,n=surface.boundaries.length-1,patches=surface.patches;
   const forward=unit(sub(positions[surface.nose],positions[surface.tail]));
   const spanVector=sub(positions[surface.right],positions[surface.left]);
   const spanAxis=unit(sub(spanVector,scale(forward,dot(spanVector,forward))));
-  const coordinates=positions.map(p=>dot(sub(p,positions[surface.tail]),spanAxis));
-  const spanScale=Math.max(.1,(Math.max(...coordinates)-Math.min(...coordinates))/surface.span);
+  const tail=positions[surface.tail];
+  let low=Infinity,high=-Infinity;
+  for(const p of positions){const c=(p[0]-tail[0])*spanAxis[0]+(p[1]-tail[1])*spanAxis[1]+(p[2]-tail[2])*spanAxis[2];if(c<low)low=c;if(c>high)high=c;}
+  const spanScale=Math.max(.1,(high-low)/surface.span);
   const up=unit(cross(spanVector,forward)),boundaries=surface.boundaries.map(x=>x*spanScale);
-  const exposure=surface.owners?exposureQuery(positions,faces,surface):()=>1;
-  const geometry=faces.map(([a,b,c],fi)=>{
-    const av=cross(sub(positions[b],positions[a]),sub(positions[c],positions[a]));
-    return {area:length(av)/2,normal:scale(unit(av),surface.signs[fi])};
-  });
-  const strips=Array.from({length:n},()=>({area:0,speed:0,alpha:0,attached:0}));
-  const samples=surface.patches.map(patch=>{
-    const face=faces[patch.face],g=geometry[patch.face],center:V3=[0,0,0],v:V3=[0,0,0];
-    face.forEach((id,j)=>{for(let d=0;d<3;d++){center[d]+=positions[id][d]*patch.weights[j];v[d]+=velocities[id][d]*patch.weights[j];}});
-    const rel=sub(v,settings.windAt?.(center)??settings.wind),speed=length(rel),direction=unit(rel);
-    const alpha=Math.asin(clamp(-dot(g.normal,direction),-1,1));
-    const area=g.area*patch.fraction*exposure(center,patch.face);
+  // Layer shielding changes slowly; a caller that samples loads several
+  // times per frame may hold one frame's exposure in `settings.exposure`.
+  const held=settings.exposure,reuse=!!held&&held.valid&&held.values.length===patches.length;
+  if(held&&!reuse){if(held.values.length!==patches.length)held.values=new Float64Array(patches.length);held.valid=true;}
+  const exposure=surface.owners&&!reuse?exposureQuery(positions,faces,surface):undefined;
+  // Per face: area and oriented unit normal.
+  if(normalScratch.length<faces.length*4)normalScratch=new Float64Array(faces.length*4);
+  const geometry=normalScratch;
+  for(let fi=0;fi<faces.length;fi++){
+    const face=faces[fi],a=positions[face[0]],b=positions[face[1]],c=positions[face[2]];
+    const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
+    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,len=Math.hypot(nx,ny,nz),inverse=surface.signs[fi]/Math.max(len,1e-12);
+    geometry[4*fi]=len/2;geometry[4*fi+1]=nx*inverse;geometry[4*fi+2]=ny*inverse;geometry[4*fi+3]=nz*inverse;
+  }
+  // Per strip: area, area-weighted speed, attached incidence, attached area.
+  if(stripScratch.length<n*4)stripScratch=new Float64Array(n*4);
+  const strips=stripScratch;strips.fill(0,0,n*4);
+  // Per patch: direction, area, speed, incidence, attachment.
+  if(patchScratch.length<patches.length*7)patchScratch=new Float64Array(patches.length*7);
+  const samples=patchScratch,panels:PanelLoad[]=new Array(patches.length);
+  for(let k=0;k<patches.length;k++){
+    const patch=patches[k],face=faces[patch.face],weights=patch.weights,g=4*patch.face,w0=weights[0],w1=weights[1],w2=weights[2];
+    const pa=positions[face[0]],pb=positions[face[1]],pc=positions[face[2]],va=velocities[face[0]],vb=velocities[face[1]],vc=velocities[face[2]];
+    const center:V3=[pa[0]*w0+pb[0]*w1+pc[0]*w2,pa[1]*w0+pb[1]*w1+pc[1]*w2,pa[2]*w0+pb[2]*w1+pc[2]*w2];
+    const wind=settings.windAt?.(center)??settings.wind;
+    const rx=va[0]*w0+vb[0]*w1+vc[0]*w2-wind[0],ry=va[1]*w0+vb[1]*w1+vc[1]*w2-wind[1],rz=va[2]*w0+vb[2]*w1+vc[2]*w2-wind[2];
+    const speed=Math.hypot(rx,ry,rz),inverse=1/Math.max(speed,1e-12),dx=rx*inverse,dy=ry*inverse,dz=rz*inverse;
+    const nx=geometry[g+1],ny=geometry[g+2],nz=geometry[g+3];
+    const alpha=Math.asin(clamp(-(nx*dx+ny*dy+nz*dz),-1,1));
+    const exposed=reuse?held!.values[k]:exposure?exposure(center,patch.face):1;
+    if(held&&!reuse)held.values[k]=exposed;
+    const area=geometry[g]*patch.fraction*exposed;
     // Thin-wing assumptions fade out for reversed flow, side-slip, steep panels and stall.
-    const attached=(1-smooth(.21,.49,Math.abs(alpha)))*smooth(.25,.75,dot(direction,forward))*smooth(.2,.7,Math.abs(dot(g.normal,up)));
-    const strip=strips[patch.station];strip.area+=area;strip.speed+=area*speed;strip.alpha+=area*attached*alpha;strip.attached+=area*attached;
-    return {patch,center,area,speed,direction,alpha,normal:g.normal,attached};
-  });
-  const chords=strips.map((s,i)=>s.area/Math.max(boundaries[i+1]-boundaries[i],1e-8));
-  const speeds=strips.map(s=>s.speed/Math.max(s.area,1e-12)),angles=strips.map(s=>s.alpha/Math.max(s.attached,1e-12));
-  const attachment=strips.map(s=>s.attached/Math.max(s.area,1e-12));
+    const attached=(1-smooth(.21,.49,Math.abs(alpha)))*smooth(.25,.75,dx*forward[0]+dy*forward[1]+dz*forward[2])*smooth(.2,.7,Math.abs(nx*up[0]+ny*up[1]+nz*up[2]));
+    const strip=4*patch.station;strips[strip]+=area;strips[strip+1]+=area*speed;strips[strip+2]+=area*attached*alpha;strips[strip+3]+=area*attached;
+    const o=7*k;samples[o]=dx;samples[o+1]=dy;samples[o+2]=dz;samples[o+3]=area;samples[o+4]=speed;samples[o+5]=alpha;samples[o+6]=attached;
+    panels[k]={center,area,alpha,stalled:attached<.5,force:[0,0,0],lift:[0,0,0]};
+  }
+  const chords:number[]=[],speeds:number[]=[],angles:number[]=[],attachment:number[]=[];
+  for(let i=0;i<n;i++){
+    const area=strips[4*i],attached=strips[4*i+3];
+    chords.push(area/Math.max(boundaries[i+1]-boundaries[i],1e-8));speeds.push(strips[4*i+1]/Math.max(area,1e-12));
+    angles.push(strips[4*i+2]/Math.max(attached,1e-12));attachment.push(attached/Math.max(area,1e-12));
+  }
   const solution=solveLiftingLine(boundaries,chords,speeds,angles,attachment);
-  return samples.map(s=>{
-    const i=s.patch.station,blend=s.attached;
+  for(let k=0;k<patches.length;k++){
+    const patch=patches[k],i=patch.station,o=7*k,g=4*patch.face,panel=panels[k];
+    const dx=samples[o],dy=samples[o+1],dz=samples[o+2],area=samples[o+3],speed=samples[o+4],alpha=samples[o+5],blend=samples[o+6];
+    const nx=geometry[g+1],ny=geometry[g+2],nz=geometry[g+3];
     const clCoupled=2*solution.circulation[i]/Math.max(speeds[i]*chords[i],1e-10);
     // Span solve fixes the mean; local incidence retains chordwise reflex/trim moments.
-    const clAttached=blend/Math.max(attachment[i],1e-12)*clCoupled+blend*2*Math.PI*(s.alpha-angles[i]);
-    const cl=clamp(clAttached,-1.5,1.5)+(1-blend)*.85*Math.sin(2*s.alpha);
-    const cd=blend*.035+(1-blend)*(.08+1.75*Math.sin(s.alpha)**2)+Math.max(0,clAttached*solution.downwash[i]/Math.max(s.speed,1e-8));
-    const liftDirection=unit(sub(s.normal,scale(s.direction,dot(s.normal,s.direction))));
-    const qA=settings.enabled?.5*settings.density*s.speed*s.speed*s.area:0;
-    const lift=scale(liftDirection,qA*cl),force=sub(lift,scale(s.direction,qA*cd));
+    const clAttached=blend/Math.max(attachment[i],1e-12)*clCoupled+blend*2*Math.PI*(alpha-angles[i]);
+    const cl=clamp(clAttached,-1.5,1.5)+(1-blend)*.85*Math.sin(2*alpha);
+    const cd=blend*.035+(1-blend)*(.08+1.75*Math.sin(alpha)**2)+Math.max(0,clAttached*solution.downwash[i]/Math.max(speed,1e-8));
+    const along=nx*dx+ny*dy+nz*dz,lx=nx-dx*along,ly=ny-dy*along,lz=nz-dz*along,liftScale=1/Math.max(Math.hypot(lx,ly,lz),1e-12);
+    const qA=settings.enabled?.5*settings.density*speed*speed*area:0,lifting=qA*cl*liftScale,drag=qA*cd;
+    const lift=panel.lift,force=panel.force;
+    lift[0]=lx*lifting;lift[1]=ly*lifting;lift[2]=lz*lifting;
+    force[0]=lift[0]-dx*drag;force[1]=lift[1]-dy*drag;force[2]=lift[2]-dz*drag;
     // Partition of unity and linear precision preserve both force and moment exactly.
-    faces[s.patch.face].forEach((id,j)=>{for(let d=0;d<3;d++)out[id][d]+=s.patch.weights[j]*force[d];});
-    return {center:s.center,area:s.area,alpha:s.alpha,stalled:blend<.5,force,lift};
-  });
+    const face=faces[patch.face],weights=patch.weights;
+    for(let j=0;j<3;j++){const target=out[face[j]],weight=weights[j];target[0]+=weight*force[0];target[1]+=weight*force[1];target[2]+=weight*force[2];}
+  }
+  return panels;
 }

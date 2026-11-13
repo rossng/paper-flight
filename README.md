@@ -60,6 +60,7 @@ Technical notes and findings live in [`docs/`](docs/):
 - [Physics model and limits](docs/physics-upgrade.md)
 - [Physics tests and results](docs/physics-validation.md)
 - [Performance report](docs/performance.md)
+- [Real-time solver](docs/realtime-solver.md)
 - [Plane library and downloads](docs/plane-library.md)
 - [Folding model and limits](docs/custom-folding.md)
 

@@ -17,6 +17,7 @@
     "benchmark:launcher": "node --import tsx tests/launcher-benchmark.ts",
     "benchmark:contact": "node --import tsx tests/self-contact-benchmark.ts",
     "benchmark:performance": "node --import tsx tests/performance-benchmark.ts",
+    "benchmark:realtime": "node --import tsx tests/realtime-benchmark.ts",
     "benchmark:compare": "node --import tsx tests/compare-performance.ts",
     "benchmark:browser": "node tests/browser-performance.mjs"
   },

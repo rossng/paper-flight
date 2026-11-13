@@ -4,6 +4,8 @@
 
 These measurements compare baseline `26bd729` with worker checkpoint `00ee89d`. They precede the elastic-launch change described below. See also the [collision findings](self-contact.md).
 
+A later change made the solver several times faster and altered its schedule; see [Real-time solver](realtime-solver.md). The measurements and exact-state comparisons in this report describe the solver as it was at these checkpoints. In particular, the worker's look-ahead is now 1 s rather than 250 ms, and large stacks run one swept contact detection per substep.
+
 ## Implementation
 
 - One dedicated module worker owns the simulation, including contact and plastic history. It advances toward a requested simulation time, independently of animation frames, yielding between complete internal substeps after a nominal 12 ms work budget. It schedules no work once it reaches that horizon. An indivisible substep can exceed the budget; it runs off the main thread.

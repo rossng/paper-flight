@@ -1,6 +1,6 @@
-import { buildMembranes, solveMembrane, membraneAlphas, type Membrane } from './membrane';
+import { buildMembranes, membraneBatch, solveMembranes, type Membrane, type MembraneBatch } from './membrane';
 import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
-import { buildContactCandidates, detectLayerContacts, solveLayerContact, type ContactCandidate } from './layer-contact';
+import { buildContactCandidates, LayerContactSolver, type ContactCandidate } from './layer-contact';
 import { SelfContactSolver } from './self-contact';
 import { GroundContactSolver, GROUND_HEIGHT, type GroundSettings } from './ground-contact';
 import { sheetMaterial, prepareMaterialGeometry, hingeStiffness, updateCreasePlasticity, type SheetMaterial } from './sheet-material';
@@ -9,8 +9,19 @@ import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynam
 import { airVelocity } from './weather';
 import { materialSettings, type MaterialId } from './materials';
 import { RELEASE_DURATION_MS, springVelocityDelta } from './launcher';
-import { dampEdges, limitEdgeStrain, solveHinge, solveLayerTie } from './constraints';
+import { dampEdges, edgeBatch, edgeStrainsWithin, hingeBatch, limitEdgeStrains, setHingeOffset, solveHinges, solveLayerTie, type EdgeBatch, type HingeBatch } from './constraints';
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
+// Work-saving schedule. Each item trades exactness for time where the
+// difference was measured to be within run-to-run variation.
+/** Scan every layer candidate on alternate frames; substeps between revisit the near list. */
+const LAYER_SCAN_FRAMES=2;
+/** A contact hovering this close (m) on its own side stays active into the next
+ * substep. Tighter once on the floor, where lingering contacts delay settling. */
+const CARRY_GAP=1e-4,RESTING_CARRY_GAP=1e-5;
+/** Below this many broad-phase pairs a second, early swept detection is cheap enough to keep. */
+const EARLY_DETECTION_PAIRS=12000;
+/** Fewest constraint sweeps per substep when extra substeps share a frame's sweeps. */
+const MIN_SWEEPS=18;
 export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
@@ -23,7 +34,7 @@ export interface Touchdown { time:number; center:V3; distance:number }
 export interface Metrics { time:number; airTime:number; flightDistance:number; groundDistance:number; speed:number; altitude:number; distance:number; pathLength:number; deformation:number; bend:number; maxStrain:number; force:V3; stallFraction:number; center:V3 }
 export class Simulation {
   tributaryArea:number[]; membranes:Membrane[];
-  surface:LiftingSurface; material:SheetMaterial; contactCandidates:ContactCandidate[];
+  surface:LiftingSurface; material:SheetMaterial; layerContact:LayerContactSolver;
   selfContact:SelfContactSolver;
   groundContact:GroundContactSolver;
   touchdown?:Touchdown;groundDistance=0;
@@ -32,7 +43,12 @@ export class Simulation {
   panels:PanelLoad[]=[]; parameters:Parameters; status:Status='ready'; time=0; pathLength=0;
   start:V3=[0,0,0]; trail:V3[]=[]; peakDeformation=0; lastCenter:V3=[0,0,0];
   private pendingStep?:Generator<void,void,void>;
-  private oldPositions:V3[]=[];
+  // Solver working state: flat xyz copies of the per-vertex arrays above, and
+  // structure-of-arrays constraints. The per-vertex arrays stay authoritative
+  // between substeps, so readers and external edits see a consistent state.
+  private x:Float64Array; private xOld:Float64Array; private v:Float64Array; private w:Float64Array; private air:Float64Array;
+  private exposure={values:new Float64Array(0),valid:false}; private frame=0;
+  private hingeBatch:HingeBatch; private edgeBatch:EdgeBatch; private membraneBatch:MembraneBatch;
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
     this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
     this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);
@@ -41,9 +57,15 @@ export class Simulation {
     this.membranes=buildMembranes(this.mesh);
     this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
     this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
-    this.contactCandidates=buildContactCandidates(this.mesh);this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);this.reset();
+    this.layerContact=new LayerContactSolver(buildContactCandidates(this.mesh));this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);
+    const size=this.mesh.rest.length*3;
+    this.x=new Float64Array(size);this.xOld=new Float64Array(size);this.v=new Float64Array(size);this.air=new Float64Array(size);this.w=new Float64Array(this.mesh.rest.length);
+    this.hingeBatch=hingeBatch(this.mesh.hinges);this.edgeBatch=edgeBatch(this.mesh.edges);this.membraneBatch=membraneBatch(this.membranes);
+    this.reset();
   }
   get active(){return isActiveStatus(this.status);}
+  /** Rest-coplanar layer candidates, with their current side state. */
+  get contactCandidates():ContactCandidate[]{this.layerContact.sync();return this.layerContact.candidates;}
   get groundHeight(){return GROUND_HEIGHT+this.material.thickness/2;}
   center(array=this.positions):V3 {
     const c:V3=[0,0,0],mass=this.mesh.masses.reduce((a,b)=>a+b,0);
@@ -51,17 +73,17 @@ export class Simulation {
     return c;
   }
   reset() {
-    this.pendingStep=undefined;
+    this.pendingStep=undefined;this.frame=0;this.exposure.valid=false;
     this.selfContact.reset();
     this.groundContact.reset();this.touchdown=undefined;this.groundDistance=0;this.quietTime=0;
-    for(const c of this.contactCandidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
+    for(const c of this.layerContact.candidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
+    this.layerContact.reset();
     for(const h of this.mesh.hinges){h.plasticOffset=0;h.plasticAccumulated=0;h.lambda=0;}
     const angle=radians(this.parameters.pitch),c=Math.cos(angle),s=Math.sin(angle);
     const yaw=radians(this.parameters.heading),cy=Math.cos(yaw),sy=Math.sin(yaw);
     this.positions=this.mesh.rest.map(([x,y,z])=>{const px=c*x-s*y;return [cy*px-sy*z,s*x+c*y,sy*px+cy*z];});
     const center=this.center();
     for(const p of this.positions){p[0]-=center[0];p[1]+=this.parameters.height-center[1];p[2]-=center[2];}
-    this.oldPositions=this.positions.map(p=>[...p]);
     this.velocities=this.positions.map(()=>[0,0,0]);this.forces=this.positions.map(()=>[0,0,0]);
     this.status='ready';this.time=0;this.pathLength=0;this.peakDeformation=0;this.panels=[];
     this.start=this.center();this.lastCenter=[...this.start];this.trail=[[...this.start]];
@@ -117,71 +139,112 @@ export class Simulation {
       if(this.positions[i][1]-this.groundHeight<.03+speed*FIXED_DT)
         contactSubsteps=Math.max(contactSubsteps,speed>.5?12:SUBSTEPS,Math.ceil(FIXED_DT*(speed+this.parameters.gravity*FIXED_DT)/.002));
     }
-    const minimum=Math.max(this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS,launchSubsteps,contactSubsteps);
-    const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,Math.ceil(FIXED_DT*rate/.8))),dt=FIXED_DT/substeps;
+    const baseSubsteps=this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS;
+    const minimum=Math.max(baseSubsteps,launchSubsteps,contactSubsteps);
+    const aeroSubsteps=Math.max(1,Math.ceil(FIXED_DT*rate/.8));
+    const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,aeroSubsteps)),dt=FIXED_DT/substeps;
+    const aeroStride=Math.max(1,Math.floor(substeps/aeroSubsteps));
     const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
     const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
-    const rigidity=this.mesh.hinges.map(h=>hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1));
-    const membraneAlpha=this.membranes.map(t=>membraneAlphas(t,this.material,dt));
+    const count=this.positions.length,x=this.x,old=this.xOld,v=this.v,w=this.w,air=this.air,frame=this.frame++;
+    const hinges=this.hingeBatch,edges=this.edgeBatch,membranes=this.membraneBatch,layers=this.layerContact,self=this.selfContact,ground=this.groundContact;
+    const contact=this.parameters.layerModel==='contact';
+    // Constraint sweeps converge faster per sweep at a smaller timestep. When
+    // floor contact, the launch stroke or air loads raise the substep count
+    // above the sheet's usual one, share that frame's sweeps between them
+    // (down to MIN_SWEEPS each) instead of multiplying the work.
+    const requested=this.parameters.iterations;
+    const iterations=!this.parameters.substeps&&substeps>baseSubsteps?Math.min(requested,Math.max(MIN_SWEEPS,Math.ceil(requested*baseSubsteps/substeps))):requested;
+    for(let i=0;i<count;i++)w[i]=this.invMass[i];
+    // Effective bending rigidity D; crease stiffness is an independent torsional spring.
+    this.mesh.hinges.forEach((h,j)=>{
+      const k=hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1);
+      hinges.alpha[j]=1/Math.max(k,1e-8)/(dt*dt);
+    });
+    this.membranes.forEach((t,j)=>{
+      const scale=this.material.thickness*t.area*dt*dt;
+      membranes.alpha[3*j]=1/(this.material.youngMD*scale);membranes.alpha[3*j+1]=1/(this.material.youngCD*scale);membranes.alpha[3*j+2]=1/(this.material.shear*scale);
+    });
     const direction=this.launchDirection();
     for(let substep=0;substep<substeps;substep++){
-      const old=this.oldPositions;
-      for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)old[i][d]=this.positions[i][d];
-      for(let i=0;i<this.forces.length;i++){this.forces[i][0]=0;this.forces[i][1]=-this.parameters.gravity*this.mesh.masses[i];this.forces[i][2]=0;}
-      this.panels=aerodynamicLoads(this.positions,this.velocities,this.mesh.faces,this.aeroSettings(),this.forces);
+      for(let i=0;i<count;i++){
+        const p=this.positions[i],u=this.velocities[i],k=3*i;
+        x[k]=p[0];x[k+1]=p[1];x[k+2]=p[2];v[k]=u[0];v[k+1]=u[1];v[k+2]=u[2];
+      }
+      old.set(x);
+      // Air loads are sampled as often as their explicit stability needs, and
+      // held between samples; structure and contact still advance every substep.
+      if(substep%aeroStride===0){
+        for(const force of this.forces){force[0]=0;force[1]=0;force[2]=0;}
+        const settings=this.aeroSettings();
+        // Layer shielding is refreshed once per frame.
+        settings.exposure=this.exposure;if(substep===0)this.exposure.valid=false;
+        this.panels=aerodynamicLoads(this.positions,this.velocities,this.mesh.faces,settings,this.forces);
+        for(let i=0;i<count;i++){const force=this.forces[i],k=3*i;air[k]=force[0];air[k+1]=force[1];air[k+2]=force[2];}
+      }
+      for(let i=0;i<count;i++){const force=this.forces[i],k=3*i;force[0]=air[k];force[1]=air[k+1]-this.parameters.gravity*this.mesh.masses[i];force[2]=air[k+2];}
       // Distribute the launcher load by mass: a supported launch with no added
       // torque or artificial vertex-to-vertex velocity discontinuity. Local
       // hook/contact stresses are outside this ideal acceleration model.
       const acceleration=springVelocityDelta(this.time,dt,this.parameters.speed,this.parameters.launchDuration)/dt;
       if(acceleration)for(let i=0;i<this.forces.length;i++)for(let d=0;d<3;d++)this.forces[i][d]+=this.mesh.masses[i]*acceleration*direction[d];
-      for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++){
-        this.velocities[i][d]+=dt*this.forces[i][d]*this.invMass[i];
-        this.positions[i][d]+=dt*this.velocities[i][d];
+      for(let i=0;i<count;i++){
+        const force=this.forces[i],k=3*i,weight=w[i];
+        v[k]+=dt*force[0]*weight;v[k+1]+=dt*force[1]*weight;v[k+2]+=dt*force[2]*weight;
+        x[k]+=dt*v[k];x[k+1]+=dt*v[k+1];x[k+2]+=dt*v[k+2];
       }
-      for(const e of this.mesh.edges)e.lambda=0;
-      for(const t of this.membranes){t.lambda[0]=0;t.lambda[1]=0;t.lambda[2]=0;}
-      for(const h of this.mesh.hinges)h.lambda=0;
-      const contacts=this.parameters.layerModel==='contact'?detectLayerContacts(this.positions,old,this.contactCandidates):[];
-      this.selfContact.beginStep();
-      this.groundContact.reset();
-      for(let iteration=0;iteration<this.parameters.iterations;iteration++){
+      membranes.lambda.fill(0);hinges.lambda.fill(0);
+      for(let j=0;j<this.mesh.hinges.length;j++)setHingeOffset(hinges,j,this.mesh.hinges[j].plasticOffset??0);
+      if(contact)layers.detect(x,old,substep===0&&frame%LAYER_SCAN_FRAMES===0);else layers.count=0;
+      self.beginStep();
+      // Contacts that still touch, or hover just apart, stay active from the
+      // previous substep: every sweep enforces them without re-detection, and
+      // resting stacks do not chatter through repeated re-impact.
+      if(contact)self.carry(old,this.touchdown?RESTING_CARRY_GAP:CARRY_GAP);
+      ground.reset();
+      // Small meshes can afford the early swept detection as well.
+      const early=contact&&self.pairCount<=EARLY_DETECTION_PAIRS;
+      for(let iteration=0;iteration<iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
-        for(let j=0;j<this.membranes.length;j++)solveMembrane(this.positions,this.invMass,this.membranes[forward?j:this.membranes.length-1-j],this.material,dt,membraneAlpha[forward?j:this.membranes.length-1-j]);
-        for(let j=0;j<this.mesh.hinges.length;j++){
-          const h=this.mesh.hinges[forward?j:this.mesh.hinges.length-1-j];
-          // Effective bending rigidity D; crease stiffness is an independent torsional spring.
-          const k=rigidity[forward?j:this.mesh.hinges.length-1-j];
-          solveHinge(this.positions,this.invMass,h,1/Math.max(k,1e-8),dt);
-        }
-        if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(this.positions,this.invMass,tie);
-        for(let j=0;j<this.mesh.edges.length;j++)limitEdgeStrain(this.positions,this.invMass,this.mesh.edges[forward?j:this.mesh.edges.length-1-j]);
-        for(const contact of contacts)solveLayerContact(this.positions,this.invMass,contact,this.material.friction);
-        if(this.parameters.layerModel==='contact'){
+        solveMembranes(x,w,membranes,forward);
+        solveHinges(x,w,hinges,forward);
+        if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(x,w,tie);
+        limitEdgeStrains(x,w,edges,forward);
+        layers.solve(x,w,this.material.friction,iteration);
+        if(contact){
           // Include structural projection in the sweep, not only free motion.
           // Contact is last so the strain limiter cannot silently undo it.
-          if(iteration===0||iteration===this.parameters.iterations-1)this.selfContact.detect(old,this.positions);
-          this.selfContact.solve(this.positions,this.invMass,forward);
+          // Swept detection on the last sweep adds every fresh crossing.
+          if((early&&iteration===0)||iteration===iterations-1)self.detectFlat(old,x);
+          self.solveFlat(x,w,forward,iteration);
         }
-        this.groundContact.solve(this.positions,old,this.invMass,this.groundHeight,this.parameters);
+        ground.solveFlat(x,old,w,this.groundHeight,this.parameters);
       }
-      const groundCleanup=this.groundContact.touched;
-      for(let pass=0;pass<(groundCleanup?32:this.parameters.layerModel==='contact'?4:0);pass++){
+      const groundCleanup=ground.touched;
+      for(let pass=0;pass<(groundCleanup?32:contact?4:0);pass++){
         // A pinned nose can concentrate compression into a few very short
         // edges. Reconcile the no-tearing envelope with both contact systems.
-        if(groundCleanup)for(let j=0;j<this.mesh.edges.length;j++)limitEdgeStrain(this.positions,this.invMass,this.mesh.edges[pass%2===0?j:this.mesh.edges.length-1-j]);
-        if(this.parameters.layerModel==='contact')this.selfContact.solve(this.positions,this.invMass,pass%2===0);
-        this.groundContact.solve(this.positions,old,this.invMass,this.groundHeight,this.parameters);
+        if(groundCleanup)limitEdgeStrains(x,w,edges,pass%2===0);
+        if(contact)self.solveFlat(x,w,pass%2===0);
+        ground.solveFlat(x,old,w,this.groundHeight,this.parameters);
         // Most contacts converge in eight sweeps. Small triangles in dense
         // folds need extra reconciliation at impact, not a looser strain bound.
-        if(groundCleanup&&pass>=7&&(pass+1)%4===0&&this.mesh.edges.every(e=>Math.abs(length(sub(this.positions[e.a],this.positions[e.b]))/e.rest-1)<.05))break;
+        if(groundCleanup&&pass>=7&&(pass+1)%4===0&&edgeStrainsWithin(x,edges,.05))break;
       }
-      for(const h of this.mesh.hinges)if(h.crease)updateCreasePlasticity(h,hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]),this.material);
-      for(let i=0;i<this.positions.length;i++)for(let d=0;d<3;d++)this.velocities[i][d]=(this.positions[i][d]-old[i][d])/dt;
-      dampEdges(this.positions,this.velocities,this.invMass,this.mesh.edges,1-Math.exp(-18*dt));
-      const supported=this.groundContact.solveVelocity(this.positions,this.velocities,this.groundHeight,this.parameters);
+      for(let k=0;k<3*count;k++)v[k]=(x[k]-old[k])/dt;
+      dampEdges(x,v,w,edges,1-Math.exp(-18*dt));
+      const supported=ground.solveVelocityFlat(x,v,this.groundHeight,this.parameters);
+      let finite=true;
+      for(let k=0;k<3*count;k++)if(!(Math.abs(x[k])<=1000)){finite=false;break;}
+      for(let i=0;i<count;i++){
+        const p=this.positions[i],u=this.velocities[i],k=3*i;
+        if(finite){p[0]=x[k];p[1]=x[k+1];p[2]=x[k+2];u[0]=v[k];u[1]=v[k+1];u[2]=v[k+2];}
+        else{p[0]=old[k];p[1]=old[k+1];p[2]=old[k+2];u[0]=0;u[1]=0;u[2]=0;}
+      }
+      if(finite)for(const h of this.mesh.hinges)if(h.crease)updateCreasePlasticity(h,hingeAngle(...h.ids.map(i=>this.positions[i]) as [V3,V3,V3,V3]),this.material);
       this.time+=dt;
-      if(this.positions.some(p=>p.some(v=>!Number.isFinite(v)||Math.abs(v)>1000))){this.positions=old;this.velocities=old.map(()=>[0,0,0]);this.status='error';return;}
+      if(!finite){this.status='error';return;}
       const center=this.center();this.pathLength+=length(sub(center,this.lastCenter));
       if(this.touchdown)this.groundDistance+=Math.hypot(center[0]-this.lastCenter[0],center[2]-this.lastCenter[2]);
       this.lastCenter=center;
