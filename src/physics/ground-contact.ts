@@ -17,21 +17,23 @@ export class GroundContactSolver {
     this.normal=new Float64Array(count);this.tangentX=new Float64Array(count);this.tangentZ=new Float64Array(count);
   }
   reset(){this.normal.fill(0);this.tangentX.fill(0);this.tangentZ.fill(0);this.touched=false;}
-  solve(p:V3[],old:V3[],w:number[],height:number,settings:GroundSettings){
+  /** Flat xyz coordinates; `old` holds the positions before this substep. */
+  solveFlat(x:Float64Array,old:Float64Array,w:ArrayLike<number>,height:number,settings:GroundSettings){
     const muS=Math.max(0,settings.groundStaticFriction),muK=Math.min(muS,Math.max(0,settings.groundKineticFriction));
-    for(let i=0;i<p.length;i++){
-      if(w[i]<=0)continue;
-      const point=p[i],gap=point[1]-height;
-      if(gap>0&&this.normal[i]===0)continue;
-      const normal=Math.max(0,this.normal[i]-gap/w[i]);
-      point[1]+=w[i]*(normal-this.normal[i]);this.normal[i]=normal;
+    const normals=this.normal,tangentX=this.tangentX,tangentZ=this.tangentZ;
+    for(let i=0,k=0;i<normals.length;i++,k+=3){
+      const gap=x[k+1]-height,previous=normals[i];
+      if(gap>0&&previous===0)continue;
+      const weight=w[i];if(weight<=0)continue;
+      const normal=Math.max(0,previous-gap/weight);
+      x[k+1]+=weight*(normal-previous);normals[i]=normal;
       if(normal>0)this.touched=true;
-      const tx=this.tangentX[i]-(point[0]-old[i][0])/w[i],tz=this.tangentZ[i]-(point[2]-old[i][2])/w[i];
+      const tx=tangentX[i]-(x[k]-old[k])/weight,tz=tangentZ[i]-(x[k+2]-old[k+2])/weight;
       const magnitude=Math.hypot(tx,tz);
       const factor=magnitude<=muS*normal?1:Math.min(1,muK*normal/Math.max(magnitude,1e-30));
       const nextX=tx*factor,nextZ=tz*factor;
-      point[0]+=w[i]*(nextX-this.tangentX[i]);point[2]+=w[i]*(nextZ-this.tangentZ[i]);
-      this.tangentX[i]=nextX;this.tangentZ[i]=nextZ;
+      x[k]+=weight*(nextX-tangentX[i]);x[k+2]+=weight*(nextZ-tangentZ[i]);
+      tangentX[i]=nextX;tangentZ[i]=nextZ;
     }
   }
   /** Position projection leaves a closing velocity when a vertex started above
@@ -39,20 +41,29 @@ export class GroundContactSolver {
    * damping, with friction only for this additional normal impulse. The rest
    * of the friction budget was already spent by the position solve. There is
    * no added restitution; elastic sheet bending can still produce a rebound. */
-  solveVelocity(p:V3[],v:V3[],height:number,settings:GroundSettings){
+  solveVelocityFlat(x:Float64Array,v:Float64Array,height:number,settings:GroundSettings){
     const muS=Math.max(0,settings.groundStaticFriction),muK=Math.min(muS,Math.max(0,settings.groundKineticFriction));
     let supported=false;
-    for(let i=0;i<p.length;i++){
-      if(p[i][1]>height+CONTACT_TOLERANCE||this.normal[i]<=0)continue;
+    for(let i=0,k=0;i<this.normal.length;i++,k+=3){
+      if(x[k+1]>height+CONTACT_TOLERANCE||this.normal[i]<=0)continue;
       supported=true;
-      const closing=Math.max(0,-v[i][1]);
+      const closing=Math.max(0,-v[k+1]);
       if(closing===0)continue;
-      v[i][1]=0;
-      const speed=Math.hypot(v[i][0],v[i][2]);
+      v[k+1]=0;
+      const speed=Math.hypot(v[k],v[k+2]);
       const reduction=speed<=muS*closing?speed:Math.min(speed,muK*closing);
       const factor=1-reduction/Math.max(speed,1e-30);
-      v[i][0]*=factor;v[i][2]*=factor;
+      v[k]*=factor;v[k+2]*=factor;
     }
     return supported;
   }
+  // Per-vertex array forms of the same kernels.
+  solve(p:V3[],old:V3[],w:number[],height:number,settings:GroundSettings){
+    const x=pack(p);this.solveFlat(x,pack(old),w,height,settings);unpack(x,p);
+  }
+  solveVelocity(p:V3[],v:V3[],height:number,settings:GroundSettings){
+    const velocity=pack(v),supported=this.solveVelocityFlat(pack(p),velocity,height,settings);unpack(velocity,v);return supported;
+  }
 }
+const pack=(vectors:V3[])=>{const out=new Float64Array(vectors.length*3);for(let i=0;i<vectors.length;i++){out[3*i]=vectors[i][0];out[3*i+1]=vectors[i][1];out[3*i+2]=vectors[i][2];}return out;};
+const unpack=(flat:Float64Array,vectors:V3[])=>{for(let i=0;i<vectors.length;i++){vectors[i][0]=flat[3*i];vectors[i][1]=flat[3*i+1];vectors[i][2]=flat[3*i+2];}};

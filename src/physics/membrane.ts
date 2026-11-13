@@ -21,35 +21,59 @@ export function buildMembranes(mesh:PaperMesh):Membrane[]{
 export function membraneAlphas(triangle:Membrane,m:SheetMaterial,dt:number):V3 {
  return [m.youngMD,m.youngCD,m.shear].map(modulus=>1/(modulus*m.thickness*triangle.area*dt*dt)) as V3;
 }
+export interface MembraneBatch { faces:Int32Array; md:Float64Array; cd:Float64Array; alpha:Float64Array; lambda:Float64Array }
+export function membraneBatch(triangles:Membrane[]):MembraneBatch {
+ return {faces:Int32Array.from(triangles.flatMap(t=>t.face)),md:Float64Array.from(triangles.flatMap(t=>t.md)),cd:Float64Array.from(triangles.flatMap(t=>t.cd)),
+  alpha:new Float64Array(triangles.length*3),lambda:new Float64Array(triangles.length*3)};
+}
 /** Diagonal orthotropic membrane energy: Et A/2 times squared Green normal
  * strain, Gt A/2 times squared engineering shear. Poisson membrane coupling is
- * omitted; explicit shear prevents skinny triangles collapsing like bar nets. */
-export function solveMembrane(p:V3[],w:number[],triangle:Membrane,m:SheetMaterial,dt:number,preparedAlpha?:V3){
- const [ia,ib,ic]=triangle.face,a=p[ia],b=p[ib],c=p[ic],md=triangle.md,cd=triangle.cd;
- for(let mode=0;mode<3;mode++){
-  const bx=b[0]-a[0],by=b[1]-a[1],bz=b[2]-a[2],cx=c[0]-a[0],cy=c[1]-a[1],cz=c[2]-a[2];
+ * omitted; explicit shear prevents skinny triangles collapsing like bar nets.
+ * One XPBD sweep over flat xyz coordinates; `alpha` is compliance/dt^2 per mode. */
+export function solveMembranes(x:Float64Array,w:ArrayLike<number>,batch:MembraneBatch,forward:boolean){
+ const {faces,md,cd,alpha,lambda}=batch,count=faces.length/3;
+ for(let k=0;k<count;k++){
+  const t=3*(forward?k:count-1-k),ia=faces[t],ib=faces[t+1],ic=faces[t+2],a=3*ia,b=3*ib,c=3*ic,wa=w[ia],wb=w[ib],wc=w[ic];
+  let ax=x[a],ay=x[a+1],az=x[a+2],bx=x[b],by=x[b+1],bz=x[b+2],cx=x[c],cy=x[c+1],cz=x[c+2];
+  const m0=md[t],m1=md[t+1],m2=md[t+2],c0=cd[t],c1=cd[t+1],c2=cd[t+2];
   // Each normal mode needs only its own material derivative. Recompute it
   // after the preceding Gauss-Seidel correction; shear still needs both.
-  const direction=mode===1?cd:md,normal=mode<2;
-  const ux=direction[1]*bx+direction[2]*cx,uy=direction[1]*by+direction[2]*cy,uz=direction[1]*bz+direction[2]*cz;
-  const vx=normal?0:cd[1]*bx+cd[2]*cx,vy=normal?0:cd[1]*by+cd[2]*cy,vz=normal?0:cd[1]*bz+cd[2]*cz;
-  const C=normal?(ux*ux+uy*uy+uz*uz-1)/2:ux*vx+uy*vy+uz*vz;
-  const modulus=mode===0?m.youngMD:mode===1?m.youngCD:m.shear;
-  const alpha=preparedAlpha?.[mode]??1/(modulus*m.thickness*triangle.area*dt*dt);
-  const g0x=normal?direction[0]*ux:md[0]*vx+cd[0]*ux;
-  const g0y=normal?direction[0]*uy:md[0]*vy+cd[0]*uy;
-  const g0z=normal?direction[0]*uz:md[0]*vz+cd[0]*uz;
-  const g1x=normal?direction[1]*ux:md[1]*vx+cd[1]*ux;
-  const g1y=normal?direction[1]*uy:md[1]*vy+cd[1]*uy;
-  const g1z=normal?direction[1]*uz:md[1]*vz+cd[1]*uz;
-  const g2x=normal?direction[2]*ux:md[2]*vx+cd[2]*ux;
-  const g2y=normal?direction[2]*uy:md[2]*vy+cd[2]*uy;
-  const g2z=normal?direction[2]*uz:md[2]*vz+cd[2]*uz;
-  const den=alpha+w[ia]*(g0x*g0x+g0y*g0y+g0z*g0z)+w[ib]*(g1x*g1x+g1y*g1y+g1z*g1z)+w[ic]*(g2x*g2x+g2y*g2y+g2z*g2z);
-  const delta=(-C-alpha*triangle.lambda[mode])/den;triangle.lambda[mode]+=delta;
-  const wa=w[ia]*delta,wb=w[ib]*delta,wc=w[ic]*delta;
-  a[0]+=wa*g0x;a[1]+=wa*g0y;a[2]+=wa*g0z;
-  b[0]+=wb*g1x;b[1]+=wb*g1y;b[2]+=wb*g1z;
-  c[0]+=wc*g2x;c[1]+=wc*g2y;c[2]+=wc*g2z;
+  for(let mode=0;mode<2;mode++){
+   const d0=mode?c0:m0,d1=mode?c1:m1,d2=mode?c2:m2;
+   const ex=bx-ax,ey=by-ay,ez=bz-az,fx=cx-ax,fy=cy-ay,fz=cz-az;
+   const ux=d1*ex+d2*fx,uy=d1*ey+d2*fy,uz=d1*ez+d2*fz;
+   const C=(ux*ux+uy*uy+uz*uz-1)/2,stiffness=alpha[t+mode];
+   const g0x=d0*ux,g0y=d0*uy,g0z=d0*uz,g1x=d1*ux,g1y=d1*uy,g1z=d1*uz,g2x=d2*ux,g2y=d2*uy,g2z=d2*uz;
+   const den=stiffness+wa*(g0x*g0x+g0y*g0y+g0z*g0z)+wb*(g1x*g1x+g1y*g1y+g1z*g1z)+wc*(g2x*g2x+g2y*g2y+g2z*g2z);
+   const delta=(-C-stiffness*lambda[t+mode])/den;lambda[t+mode]+=delta;
+   const sa=wa*delta,sb=wb*delta,sc=wc*delta;
+   ax+=sa*g0x;ay+=sa*g0y;az+=sa*g0z;bx+=sb*g1x;by+=sb*g1y;bz+=sb*g1z;cx+=sc*g2x;cy+=sc*g2y;cz+=sc*g2z;
+  }
+  const ex=bx-ax,ey=by-ay,ez=bz-az,fx=cx-ax,fy=cy-ay,fz=cz-az;
+  const ux=m1*ex+m2*fx,uy=m1*ey+m2*fy,uz=m1*ez+m2*fz,vx=c1*ex+c2*fx,vy=c1*ey+c2*fy,vz=c1*ez+c2*fz;
+  const C=ux*vx+uy*vy+uz*vz,stiffness=alpha[t+2];
+  const g0x=m0*vx+c0*ux,g0y=m0*vy+c0*uy,g0z=m0*vz+c0*uz;
+  const g1x=m1*vx+c1*ux,g1y=m1*vy+c1*uy,g1z=m1*vz+c1*uz;
+  const g2x=m2*vx+c2*ux,g2y=m2*vy+c2*uy,g2z=m2*vz+c2*uz;
+  const den=stiffness+wa*(g0x*g0x+g0y*g0y+g0z*g0z)+wb*(g1x*g1x+g1y*g1y+g1z*g1z)+wc*(g2x*g2x+g2y*g2y+g2z*g2z);
+  const delta=(-C-stiffness*lambda[t+2])/den;lambda[t+2]+=delta;
+  const sa=wa*delta,sb=wb*delta,sc=wc*delta;
+  x[a]=ax+sa*g0x;x[a+1]=ay+sa*g0y;x[a+2]=az+sa*g0z;
+  x[b]=bx+sb*g1x;x[b+1]=by+sb*g1y;x[b+2]=bz+sb*g1z;
+  x[c]=cx+sc*g2x;x[c+1]=cy+sc*g2y;x[c+2]=cz+sc*g2z;
+ }
+}
+const single:MembraneBatch={faces:Int32Array.of(0,1,2),md:new Float64Array(3),cd:new Float64Array(3),alpha:new Float64Array(3),lambda:new Float64Array(3)};
+const singleX=new Float64Array(9),singleW=new Float64Array(3);
+/** One triangle on per-vertex arrays; the same kernel as the batched sweep. */
+export function solveMembrane(p:V3[],w:number[],triangle:Membrane,m:SheetMaterial,dt:number,preparedAlpha?:V3){
+ const alpha=preparedAlpha??membraneAlphas(triangle,m,dt);
+ for(let j=0;j<3;j++){
+  const vertex=p[triangle.face[j]];singleX[3*j]=vertex[0];singleX[3*j+1]=vertex[1];singleX[3*j+2]=vertex[2];
+  singleW[j]=w[triangle.face[j]];single.md[j]=triangle.md[j];single.cd[j]=triangle.cd[j];single.alpha[j]=alpha[j];single.lambda[j]=triangle.lambda[j];
+ }
+ solveMembranes(singleX,singleW,single,true);
+ for(let j=0;j<3;j++){
+  const vertex=p[triangle.face[j]];vertex[0]=singleX[3*j];vertex[1]=singleX[3*j+1];vertex[2]=singleX[3*j+2];triangle.lambda[j]=single.lambda[j];
  }
 }
