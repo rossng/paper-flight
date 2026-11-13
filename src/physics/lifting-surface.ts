@@ -56,6 +56,10 @@ export function buildLiftingSurface(mesh:PaperMesh, stations=12, shieldingDistan
 }
 /** Thin-sheet profile drag, attached or edge-on separated. */
 export const PROFILE_DRAG=.035;
+/** Polhamus leading-edge suction analogy for sharp-edged, low-aspect-ratio sheets: the
+ * separated leading-edge vortex adds a normal force Kv sin^2(alpha). Kv = pi is the
+ * slender-wing value; its lift and drag components are Kv sin^2 cos and Kv |sin^3|. */
+export const VORTEX_LIFT=Math.PI;
 const smooth=(lo:number,hi:number,x:number)=>{const t=clamp((x-lo)/(hi-lo),0,1);return t*t*(3-2*t);};
 
 const FOUR_PI=4*Math.PI;
@@ -217,10 +221,12 @@ export function liftingSurfaceLoads(positions:V3[],velocities:V3[],faces:Face[],
     const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,len=Math.hypot(nx,ny,nz),inverse=surface.signs[fi]/Math.max(len,1e-12);
     geometry[4*fi]=len/2;geometry[4*fi+1]=nx*inverse;geometry[4*fi+2]=ny*inverse;geometry[4*fi+3]=nz*inverse;
   }
-  // Per lattice panel: area, area-weighted speed, attached incidence, attached area, area-weighted body x.
-  const m=surface.chordPanels??1,lattice=n*m;
-  if(stripScratch.length<lattice*5)stripScratch=new Float64Array(lattice*5);
-  const strips=stripScratch;strips.fill(0,0,lattice*5);
+  // Per lattice panel, weighted by planform (exposed area projected on the lifting plane):
+  // area, speed, attached incidence, attached area, body x; then attached exposed area.
+  // A vertical keel projects to nothing, so it cannot inflate the planar lattice.
+  const m=surface.chordPanels??1,lattice=n*m,F=6;
+  if(stripScratch.length<lattice*F)stripScratch=new Float64Array(lattice*F);
+  const strips=stripScratch;strips.fill(0,0,lattice*F);
   // Per patch: direction, area, speed, incidence, attachment.
   if(patchScratch.length<patches.length*7)patchScratch=new Float64Array(patches.length*7);
   const samples=patchScratch,panels:PanelLoad[]=new Array(patches.length);
@@ -239,23 +245,24 @@ export function liftingSurfaceLoads(positions:V3[],velocities:V3[],faces:Face[],
     // Thin-wing assumptions fade out for reversed flow, side-slip, steep panels and stall.
     const attached=(1-smooth(.21,.49,Math.abs(alpha)))*smooth(.25,.75,dx*forward[0]+dy*forward[1]+dz*forward[2])*smooth(.2,.7,Math.abs(nx*up[0]+ny*up[1]+nz*up[2]));
     const x=(center[0]-tail[0])*forward[0]+(center[1]-tail[1])*forward[1]+(center[2]-tail[2])*forward[2];
-    const strip=5*(patch.panel??patch.station);strips[strip]+=area;strips[strip+1]+=area*speed;strips[strip+2]+=area*attached*alpha;strips[strip+3]+=area*attached;strips[strip+4]+=area*x;
+    const plan=area*Math.abs(nx*up[0]+ny*up[1]+nz*up[2]),strip=F*(patch.panel??patch.station);
+    strips[strip]+=plan;strips[strip+1]+=plan*speed;strips[strip+2]+=plan*attached*alpha;strips[strip+3]+=plan*attached;strips[strip+4]+=plan*x;strips[strip+5]+=area*attached;
     const o=7*k;samples[o]=dx;samples[o+1]=dy;samples[o+2]=dz;samples[o+3]=area;samples[o+4]=speed;samples[o+5]=alpha;samples[o+6]=attached;
     panels[k]={center,area,alpha,stalled:attached<.5,force:[0,0,0],lift:[0,0,0]};
   }
-  // Equivalent panel chord is exposed area over strip width (as in lifting-line strip theory).
-  // Bins are laid end to end, leading bin first, centred on the strip's exposed-area centroid
+  // Equivalent panel chord is planform area over strip width (as in lifting-line strip theory).
+  // Bins are laid end to end, leading bin first, centred on the strip's planform centroid
   // along the body axis. Contiguous panels keep every tangency point a quarter chord clear of
   // the neighbouring bound vortex, however the sheet deforms.
   const chords=new Float64Array(lattice),lead=new Float64Array(lattice),speeds=new Float64Array(lattice),angles=new Float64Array(lattice),attachment=new Float64Array(lattice);
   for(let i=0;i<n;i++){
     const width=Math.max(boundaries[i+1]-boundaries[i],1e-8);let area=0,moment=0;
-    for(let p=i*m;p<(i+1)*m;p++){area+=strips[5*p];moment+=strips[5*p+4];}
+    for(let p=i*m;p<(i+1)*m;p++){area+=strips[F*p];moment+=strips[F*p+4];}
     let edge=moment/Math.max(area,1e-12)+area/width/2;
     for(let p=i*m;p<(i+1)*m;p++){
-      const a=strips[5*p],attached=strips[5*p+3];
+      const a=strips[F*p],attached=strips[F*p+3];
       chords[p]=a/width;lead[p]=edge;edge-=chords[p];
-      speeds[p]=strips[5*p+1]/Math.max(a,1e-12);angles[p]=strips[5*p+2]/Math.max(attached,1e-12);attachment[p]=attached/Math.max(a,1e-12);
+      speeds[p]=strips[F*p+1]/Math.max(a,1e-12);angles[p]=strips[F*p+2]/Math.max(attached,1e-12);attachment[p]=attached/Math.max(a,1e-12);
     }
   }
   const circulation=solveVortexLattice(boundaries,m,lead,chords,speeds,angles,attachment);
@@ -265,13 +272,14 @@ export function liftingSurfaceLoads(positions:V3[],velocities:V3[],faces:Face[],
     const patch=patches[k],i=patch.station,p=patch.panel??i,o=7*k,g=4*patch.face,panel=panels[k];
     const dx=samples[o],dy=samples[o+1],dz=samples[o+2],area=samples[o+3],speed=samples[o+4],alpha=samples[o+5],blend=samples[o+6];
     const nx=geometry[g+1],ny=geometry[g+2],nz=geometry[g+3];
-    // Kutta-Joukowski panel lift rho V Gamma dy, shared by exposed area: CL = 2 Gamma/(V c).
-    const clCoupled=2*circulation[p]/Math.max(speeds[p]*chords[p],1e-10);
+    // Kutta-Joukowski panel lift rho V Gamma dy, shared over the panel's attached exposed area.
+    const clCoupled=2*circulation[p]*(boundaries[i+1]-boundaries[i])/Math.max(speeds[p]*strips[F*p+5],1e-12);
     // Lattice fixes each panel's mean; local incidence retains sub-panel variations.
-    const clAttached=blend/Math.max(attachment[p],1e-12)*clCoupled+blend*2*Math.PI*(alpha-angles[p]);
-    const bounded=clamp(clAttached,-1.5,1.5),cl=bounded+(1-blend)*.85*Math.sin(2*alpha);
+    const clAttached=blend*clCoupled+blend*2*Math.PI*(alpha-angles[p]);
+    const sine=Math.sin(alpha),vortex=blend*VORTEX_LIFT*sine*Math.abs(sine);
+    const bounded=clamp(clAttached,-1.5,1.5),cl=bounded+vortex*Math.cos(alpha)+(1-blend)*.85*Math.sin(2*alpha);
     // Separated sheets keep the attached profile-drag floor; edge-on panels only add skin friction.
-    const cd=PROFILE_DRAG+(1-blend)*1.75*Math.sin(alpha)**2+Math.max(0,bounded*downwash[i]/Math.max(speed,1e-8));
+    const cd=PROFILE_DRAG+Math.abs(vortex*sine)+(1-blend)*1.75*sine*sine+Math.max(0,bounded*downwash[i]/Math.max(speed,1e-8));
     const along=nx*dx+ny*dy+nz*dz,lx=nx-dx*along,ly=ny-dy*along,lz=nz-dz*along,liftScale=1/Math.max(Math.hypot(lx,ly,lz),1e-12);
     const qA=settings.enabled?.5*settings.density*speed*speed*area:0,lifting=qA*cl*liftScale,drag=qA*cd;
     const lift=panel.lift,force=panel.force;

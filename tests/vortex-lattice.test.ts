@@ -57,3 +57,19 @@ test('chordwise bins conserve exposed area and keep loads conservative',()=>{
   assert.ok(panels.reduce((s,p)=>s+p.lift[1],0)>0);
  }
 });
+test('a vertical keel on the centre station boundary does not unbalance a mirror-symmetric sheet',async()=>{
+ const {designMesh}=await import('../src/folding/design');const {DEFAULTS,Simulation}=await import('../src/physics/simulation');
+ const p={...DEFAULTS,elevator:8},s=new Simulation(p,designMesh('stable',p)),x=s.mesh.rest,cg=s.center(x);
+ // The compiled Stable is exactly mirror symmetric about z = 0.
+ for(const q of x)assert.ok(x.some(r=>Math.hypot(q[0]-r[0],q[1]-r[1],q[2]+r[2])<1e-9));
+ const v:V3=[5*Math.cos(.17),-5*Math.sin(.17),0],panels=aerodynamicLoads(x,x.map(()=>v),s.mesh.faces,s.aeroSettings(0),x.map(()=>[0,0,0] as V3));
+ let lift=0,roll=0;for(const panel of panels){lift+=panel.force[1];roll+=cross(sub(panel.center,cg),panel.force)[0];}
+ const span=Math.max(...x.map(q=>q[2]))-Math.min(...x.map(q=>q[2]));
+ assert.ok(Math.abs(roll)<.005*lift*span,`roll ${roll} vs lift x span ${lift*span}`);
+});
+test('stack coupling stiffens layered wings without changing single sheets',async()=>{
+ const {designMesh}=await import('../src/folding/design');const {DEFAULTS,Simulation}=await import('../src/physics/simulation');
+ const flex=(stackCoupling:number,id:string)=>{const p={...DEFAULTS,stackCoupling},s=id==='legacy'?new Simulation(p):new Simulation(p,designMesh(id,p));s.launch();let peak=0;for(let i=0;i<40;i++){s.step();peak=Math.max(peak,s.deformation().rms);}return peak;};
+ assert.ok(flex(1,'stable')<flex(0,'stable')*.8);
+ assert.equal(flex(1,'legacy'),flex(0,'legacy'));
+});
