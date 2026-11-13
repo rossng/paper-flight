@@ -45,11 +45,15 @@ export function buildLiftingSurface(mesh:PaperMesh, stations=12, shieldingDistan
     const p=mesh.faces[fi].map(i=>mesh.rest[i]),chord=front[station]-back[station];
     for(let bin=0;bin<chordPanels;bin++){
       const piece=chordPanels===1?polygon:clip(p,clip(p,polygon,0,front[station]-chord*(bin+1)/chordPanels,1),0,front[station]-chord*bin/chordPanels,-1);
+      // One patch per clipped polygon, at its area centroid: velocity is linear over a face
+      // and the normal constant, so a fan of sub-triangles would only resample the same field.
+      let fraction=0,weights:V3=[0,0,0];
       for(let k=1;k+1<piece.length;k++){
         const [a,b,c]=[piece[0],piece[k],piece[k+1]],ab=sub(b,a),ac=sub(c,a);
-        const fraction=Math.abs(ab[1]*ac[2]-ab[2]*ac[1]);
-        if(fraction>1e-10)patches.push({face:fi,station,panel:station*chordPanels+bin,fraction,weights:scale(add(add(a,b),c),1/3)});
+        const part=Math.abs(ab[1]*ac[2]-ab[2]*ac[1]);
+        fraction+=part;weights=add(weights,scale(add(add(a,b),c),part/3));
       }
+      if(fraction>1e-10)patches.push({face:fi,station,panel:station*chordPanels+bin,fraction,weights:scale(weights,1/fraction)});
     }
   }
   return {patches,boundaries,span,chordPanels,nose:mesh.nose,tail:mesh.tail,left:mesh.leftRoot,right:mesh.rightRoot,owners:mesh.faceOwners,signs,shieldingDistance};
