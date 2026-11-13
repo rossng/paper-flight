@@ -42,7 +42,9 @@ recipes.push(
   ...([-1,1] as const).map(side=>op(`${side<0?'left':'right'}-tip`,'Raise the outer wingtip',[[side*(half-.012),0,0],[side*(half-.012),height,0]],[side,0,0],side*90)),
   ...deployed(height,.0762,.015)]},
  {...base,id:'buzz',name:'The Buzz — folded nose study',source:'https://www.foldnfly.com/3.html',operations:[centre,...corners,
-  across('nose-down','Bring the point to the shoulder line',half/2),...shoulders(half/2,Math.tan(Math.PI/8)),
+  across('nose-down','Bring the point to the shoulder line',half/2),
+  // Each shoulder flap crosses the centreline, so the second overlaps the first instead of refolding its tip.
+  ...shoulders(half/2,t).map(o=>o.id==='right-shoulder'?{...o,layers:{excludeTag:'left-shoulder'}}:o),
   across('nose-hem','Turn the nose edge underneath',half/2+.013,-1,-180),...deployed(height,half/2+.013,.013)]},
  {...base,height:width,id:'v-wing',name:'V-Wing — square sheet study',source:'https://www.foldnfly.com/39.html',operations:[
   {...centre,axis:[[0,0,0],[0,width,0]]},...corners,across('nose-down','Bring the point to the shoulder line',half/2),
