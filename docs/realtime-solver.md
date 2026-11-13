@@ -83,3 +83,31 @@ npm run benchmark:realtime                 # all designs, paper
 npm run benchmark:realtime -- heavy-nose   # one design
 npm run benchmark:realtime -- --material tissue
 ```
+
+## Update after the chordwise vortex lattice (base `9910ecd`)
+
+The lattice, laminated stacks and trim changes slowed the solver again: chordwise clipping doubled the aerodynamic patch count, and stiffer stacks skid for longer after touchdown, which is the most expensive regime (extra floor-contact substeps, each with at least 18 sweeps).
+
+- **One aerodynamic patch per clipped polygon**, at its area centroid, instead of a fan of sub-triangles. Velocity is linear over a face and the normal constant, so the fan only resampled the same field. About a third fewer patches; default flight distances move by under 1%.
+- **Eight substeps, not twelve, while a vertex moves faster than 0.5 m/s near the floor.** The 2 mm travel rule still raises the count for fast impacts.
+- **Floor-contact cleanup checks convergence from the fourth pass** (previously the eighth), then every fourth as before.
+
+Solver seconds per wall-clock second, same machine, default launch:
+
+| Design | `53beacc` | `9910ecd` | Now |
+| --- | ---: | ---: | ---: |
+| Original dart | 5.2 | 4.7 | 4.6 |
+| The Basic | 3.0 | 2.3 | 2.5 |
+| Folded Dart | 1.3 | 0.8 | 1.0 |
+| The Stable | 1.9 | 1.4 | 1.5 |
+| Heavy Nose | 0.9 | 0.7 | 0.8 |
+| Hunting | 1.5 | 1.2 | 1.4 |
+| V-Wing | 1.7 | 1.7 | 1.7 |
+| Underside | 1.1 | 1.1 | 1.3 |
+| Raven | 0.46 | 0.32 | 0.36 |
+
+Whole-flight ratios are not like for like across the three columns: flights now settle sooner, so fewer cheap resting frames dilute the impact frames. Solver time spent behind real time after touchdown (mean of 5.5, 6 and 6.5 m/s launches) fell from 0.88 s to 0.52 s on Folded Dart, 1.76 s to 0.96 s on Heavy Nose and 3.5 s to 2.6 s on Raven.
+
+Peak transverse penetration after touchdown over the same launches: Folded Dart 2.3 mm before, 2.4 mm now; Heavy Nose 1.7 mm before, 2.4 mm now. Peak edge strain stays at 2%.
+
+Rejected: a 12-sweep minimum outside the launch stroke was about 10% faster again but gave 35% momentary edge strain on Raven at first impact (4% with 18 sweeps).
