@@ -26,8 +26,8 @@ export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; aeroChordPanels:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,aeroChordPanels:4,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'settling'|'landed'|'finished'|'error';
 export const isActiveStatus=(status:Status)=>status==='flying'||status==='settling';
 export interface Touchdown { time:number; center:V3; distance:number }
@@ -51,12 +51,12 @@ export class Simulation {
   private hingeBatch:HingeBatch; private edgeBatch:EdgeBatch; private membraneBatch:MembraneBatch;
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
     this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
-    this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);
+    this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80,this.parameters.elevator);this.invMass=this.mesh.masses.map(m=>1/m);
     this.tributaryArea=this.mesh.rest.map(()=>0);
     for(const [a,b,c] of this.mesh.faces){const area=length(cross(sub(this.mesh.rest[b],this.mesh.rest[a]),sub(this.mesh.rest[c],this.mesh.rest[a])))/6;for(const i of [a,b,c])this.tributaryArea[i]+=area;}
     this.membranes=buildMembranes(this.mesh);
     this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
-    this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
+    this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness),this.parameters.aeroChordPanels);
     this.layerContact=new LayerContactSolver(buildContactCandidates(this.mesh));this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);
     const size=this.mesh.rest.length*3;
     this.x=new Float64Array(size);this.xOld=new Float64Array(size);this.v=new Float64Array(size);this.air=new Float64Array(size);this.w=new Float64Array(this.mesh.rest.length);

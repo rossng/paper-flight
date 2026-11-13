@@ -15,7 +15,10 @@ export function hingeAngle(p0: V3, p1: V3, p2: V3, p3: V3) {
   return Math.atan2((e[0]*s[0]+e[1]*s[1]+e[2]*s[2])/Math.max(length(e),1e-12),n1[0]*n2[0]+n1[1]*n2[1]+n1[2]*n2[2]);
 }
 /** Coarse effective folded dart, not a literal multilayer A4 folding simulation. */
-export function createDart(dihedral = 8, rows = 8, halfColumns = 5, span = 1, size = 1, mass = 0.005): PaperMesh {
+/** Reflex the original effective dart was authored with: 6 mm over the rear 30% (0.09 m). */
+export const LEGACY_REFLEX_DEGREES=Math.atan(.006/.09)*180/Math.PI;
+/** `elevator` bends the rear 30% of each wing up by that angle (degrees), like a folded sheet's flap. */
+export function createDart(dihedral = 8, rows = 8, halfColumns = 5, span = 1, size = 1, mass = 0.005, elevator = LEGACY_REFLEX_DEGREES): PaperMesh {
   const rest: V3[] = [[0.19,0,0]], regions = [0];
   const ids: number[][] = [[0]];
   for (let i=1;i<=rows;i++) {
@@ -24,7 +27,7 @@ export function createDart(dihedral = 8, rows = 8, halfColumns = 5, span = 1, si
       const side=Math.sign(j), u=Math.abs(j);
       const z=side*t*(u===0 ? 0 : 0.010+(u-1)/(halfColumns-1)*0.080);
       const x=0.19-0.30*t+0.014*t*(u/halfColumns);
-      const reflex=0.006*Math.max(0,(t-0.7)/0.3)*(u===0 ? 0 : 1);
+      const reflex=0.09*Math.tan(radians(elevator))*Math.max(0,(t-0.7)/0.3)*(u===0 ? 0 : 1);
       const y=u===0 ? -0.022*t : Math.tan(radians(dihedral))*(Math.abs(z)-0.01*t)+reflex;
       ids[i].push(rest.length); rest.push([x,y,z]); regions.push(j);
     }
