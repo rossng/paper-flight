@@ -8,7 +8,7 @@ import { materialSettings, type MaterialId } from '../src/physics/materials';
 import { designs } from '../src/folding/library';
 
 const args=process.argv.slice(2),flag=args.indexOf('--material');
-const material=(flag>=0?args[flag+1]:'paper') as MaterialId,only=args.find((arg,i)=>!arg.startsWith('--')&&i!==flag+1);
+const material=(flag>=0?args[flag+1]:'paper') as MaterialId,only=args.find((arg,i)=>!arg.startsWith('--')&&(flag<0||i!==flag+1));
 const ratio=(steps:number,ms:number)=>ms?Number((steps*FIXED_DT*1000/ms).toFixed(2)):null;
 for(const design of designs){
   if(only&&design.id!==only)continue;
