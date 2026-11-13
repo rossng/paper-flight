@@ -10,7 +10,7 @@ import { FoldSequence, FoldAnimator } from './folding/animation';
 import { FoldingView } from './folding/view';
 import { designs,findDesign,sheetDesigns } from './folding/library';
 import { designFold,collectionFold,foldFilename,saveFold } from './folding/downloads';
-import { readDesignSettings } from './folding/settings';
+import { readDesignSettings, readLaunchSettings } from './folding/settings';
 import { designThumbnail } from './folding/thumbnail';
 import { Viewport } from './rendering/viewport';
 import { materialThumbnail } from './rendering/material-thumbnail';
@@ -161,7 +161,7 @@ function switchMode(next:typeof mode){closeMaterials();cancelFolding();if(next==
 $('bench-tab').onclick=$('edit').onclick=$('refold').onclick=()=>switchMode('workbench');$('throw-tab').onclick=$('go-throw').onclick=()=>switchMode('throw');
 $('unfold').onclick=()=>{cancelFolding();step=0;drawSheet();foldingView.home();rebuild();};
 $('camera').onclick=()=>{if(viewport.reviewing){showFullPath();return;}if(mode==='workbench')foldingView.home();else{viewport.options.follow=!viewport.options.follow;$('camera').textContent=viewport.options.follow?'Camera: chase':'Camera: launch point';}};
-let pullX=0,pullY=0,dragging=false,startX=0,startY=0,aimPitch=10,aimTrim=5,releasing=false;let slingPointer:number|null=null;
+let pullX=0,pullY=0,dragging=false,startX=0,startY=0,aimPitch=readLaunchSettings(incoming).throwAngle,aimTrim=readLaunchSettings(incoming).trim,releasing=false;let slingPointer:number|null=null;
 function pullAmount(){return Math.hypot(pullX,pullY);}
 function releaseSpeed(){return launchSpeed(pullAmount());}
 function setPitch(value:number){if(simulation.status!=='ready'||releasing)return;aimPitch=((value+180)%360+360)%360-180;paintSling();}
@@ -289,4 +289,7 @@ function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!
  flightRunner?.advance(elapsed);
  }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();if(mode==='workbench')foldingView.render();else viewport.render();requestAnimationFrame(animate);}
 new ResizeObserver(()=>paintSling()).observe($('launch-overlay'));
-document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();flightRunner?.setSuspended(document.hidden);if(document.hidden)preparation.clear();});drawSheet();updateUI();requestAnimationFrame(animate);
+document.addEventListener('visibilitychange',()=>{reviewKeys.clear();previous=performance.now();flightRunner?.setSuspended(document.hidden);if(document.hidden)preparation.clear();});drawSheet();
+// ?mode=throw opens a linked design straight in the field, already folded.
+if(readLaunchSettings(incoming).field)switchMode('throw');
+updateUI();requestAnimationFrame(animate);
