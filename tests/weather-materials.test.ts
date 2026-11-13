@@ -44,6 +44,8 @@ for(const design of ['legacy','basic','dart','stable'])test(`tissue/${design}: h
  const sim=new Simulation(parameters,design==='legacy'?undefined:designMesh(design,parameters));sim.launch();
  let peak=0;while(sim.status==='flying'&&sim.time<.35){sim.step();peak=Math.max(peak,sim.deformation().rms);}
  assert.equal(sim.status,'flying');assert.ok(peak<.035,`early collapse: ${peak*1000} mm RMS`);
- assert.ok(peak>.001,`expected visible flex, got ${peak*1000} mm RMS`);
+ // Friction-held stacks bend as laminates (stackCoupling), so layered tissue darts flex
+ // less than single sheets; 0.3 mm RMS remains visible against a rigid sheet.
+ assert.ok(peak>.0003,`expected visible flex, got ${peak*1000} mm RMS`);
  assert.ok(Math.max(...sim.mesh.hinges.map(h=>Math.abs(h.plasticOffset??0)))<.1,'launch must not permanently crumple the creases');
 });

@@ -26,8 +26,8 @@ export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; aeroChordPanels:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,aeroChordPanels:4,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; aeroChordPanels:number; stackCoupling:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,aeroChordPanels:4,stackCoupling:1,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'settling'|'landed'|'finished'|'error';
 export const isActiveStatus=(status:Status)=>status==='flying'||status==='settling';
 export interface Touchdown { time:number; center:V3; distance:number }
@@ -157,8 +157,11 @@ export class Simulation {
     const iterations=!this.parameters.substeps&&substeps>baseSubsteps?Math.min(requested,Math.max(MIN_SWEEPS,Math.ceil(requested*baseSubsteps/substeps))):requested;
     for(let i=0;i<count;i++)w[i]=this.invMass[i];
     // Effective bending rigidity D; crease stiffness is an independent torsional spring.
+    // Contact mode: friction-held stacks bend as a laminate until they slip, and folds lock
+    // their ends. Each of n coincident layers carries n^(2c) of its own rigidity, so the
+    // stack totals n^(1+2c) D: c=0 bends layers independently, c=1 as one n-times-thick sheet.
     this.mesh.hinges.forEach((h,j)=>{
-      const k=hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):1);
+      const k=hingeStiffness(this.material,h,flatScale,creaseScale)*(this.parameters.layerModel==='bonded'?(h.layerStiffness??1):(h.layers??1)**(2*this.parameters.stackCoupling));
       hinges.alpha[j]=1/Math.max(k,1e-8)/(dt*dt);
     });
     this.membranes.forEach((t,j)=>{
