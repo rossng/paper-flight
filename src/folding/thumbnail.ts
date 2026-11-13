@@ -1,6 +1,6 @@
 import { createDart, type PaperMesh } from '../geometry/dart';
 import type { Parameters } from '../physics/simulation';
-import { flightRecipe, supportsWingSpan } from './design';
+import { flightRecipe, supportsElevator, supportsWingSpan } from './design';
 import { build } from './model';
 import { cross, dot, sub, unit } from '../physics/math';
 
@@ -24,10 +24,10 @@ export function planeThumbnail(mesh:PreviewMesh){
 // silhouette. Menu previews need no aerodynamic refinement or contact metadata.
 const previews=new Map<string,{key:string;svg:string}>();
 export function designThumbnail(id:string,parameters:Parameters){
- const span=supportsWingSpan(id)?parameters.span:1,key=`${parameters.dihedral}:${span}`;
+ const span=supportsWingSpan(id)?parameters.span:1,elevator=supportsElevator(id)?parameters.elevator:0,key=`${parameters.dihedral}:${span}:${elevator}`;
  const cached=previews.get(id);if(cached?.key===key)return cached.svg;
  let mesh:PreviewMesh;
- if(id==='legacy')mesh=createDart(parameters.dihedral,8,5,span);
+ if(id==='legacy')mesh=createDart(parameters.dihedral,8,5,span,1,.005,elevator);
  else{
   const state=build(flightRecipe(id,parameters));
   mesh={rest:[],faces:[],edges:[],hinges:[]};

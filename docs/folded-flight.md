@@ -8,6 +8,8 @@ The compiler takes the actual deployed panel positions. Material-space topology 
 
 Wing-width edits change the wing-root crease in the recipe rather than stretching the deployed sheet. Wing V changes the two deployment angles. Both retain the complete sheet area. Paper weight changes material mass and the global single-layer bending multiplier.
 
+Elevator appends one fold per wing after deployment: a straight crease from the wing-root trailing-edge corner to the outer wing edge 30 mm ahead of the trailing edge, rotating every wing layer behind it by the chosen angle (positive raises the trailing edge). Starting at the root corner keeps the keel attached, so it is a strain-free fold; designs whose wing cannot take it unchanged (Hunting's winglets) ignore the setting. The Original dart maps the same angle onto its built-in rear reflex ramp, authored at 3.8°.
+
 ## Directional sheets and sliding contact
 
 Original material UVs are carried through centroid fans and edge refinement. The solver uses them for machine/cross-direction membrane stiffness and directional hinge bending. Grammage and nominal material density set thickness; elastic moduli set stretch/shear and bending response. Fold creases retain their authored rest angles and acquire a separate permanent offset when their effective yield angle is exceeded. See [the material equations and nominal parameters](physics-upgrade.md).
@@ -24,7 +26,7 @@ For explicit comparisons, `layerModel: 'bonded'` restores the old barycentric ti
 
 The compiler retains material identities and the baseline's 48-sample static exposure weights. Default flight builds a separate spanwise aerodynamic quadrature, computes dynamic near-coplanar exposure at current patch positions, and solves coupled circulation/downwash. Sliding and separation can therefore change aerodynamic area during flight. Static compiler weights are used only by the independent-panel comparison path (`aeroModel: 'panels'`).
 
-Patch barycentric weights interpolate position and velocity and distribute force to the same structural triangle. This preserves both force and moment. Layer masses are never removed by exposure. The planar lifting-line model includes span interaction, tip unloading and induced drag, with a separated-flow fallback for large incidence and reverse flight. It is not full 3D flow around a folded stack. See [the aerodynamic model and limitations](physics-upgrade.md).
+Patch barycentric weights interpolate position and velocity and distribute force to the same structural triangle. This preserves both force and moment. Layer masses are never removed by exposure. The planar vortex lattice includes chordwise and span interaction, tip unloading and induced drag, with a separated-flow fallback for large incidence and reverse flight. It is not full 3D flow around a folded stack. See [the aerodynamic model and limitations](physics-upgrade.md).
 
 ## Replay displacement field
 

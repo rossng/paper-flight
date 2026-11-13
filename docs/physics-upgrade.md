@@ -4,7 +4,7 @@ This increment replaces the default independent-panel aerodynamics and rigid lam
 
 ## Exposed aerodynamic surface
 
-`buildLiftingSurface` clips each rest triangle into 12 cosine-spaced span stations. The resulting quadrature patches retain their parent material triangle, fractional area and barycentric position. Aerodynamic resolution is independent of structural tessellation. On every evaluation, patch positions, normals, area and velocity come from the current flexible mesh. The full deformed span is projected into the current body frame; keel-root landmarks set orientation, not span magnitude.
+`buildLiftingSurface` clips each rest triangle into 12 cosine-spaced span stations, then clips each station into `aeroChordPanels` (default 4) equal chordwise bins between that station's rest leading and trailing extent along the body axis. The resulting quadrature patches retain their parent material triangle, fractional area and barycentric position. Aerodynamic resolution is independent of structural tessellation. On every evaluation, patch positions, normals, area and velocity come from the current flexible mesh. The full deformed span is projected into the current body frame; keel-root landmarks set orientation, not span magnitude.
 
 For compiled sheets, a spatial hash finds nearly parallel overlapping material panels at each patch. Reciprocal overlap counts share their exposed area. The distance tolerance is `max(0.2 mm, 2 thicknesses)` and the absolute normal-dot threshold is 0.98. Owners distinguish a physical panel from triangles that merely tessellate it. Exposure is recomputed after sliding or opening and during replay. No static rest exposure weights enter the default coupled path. The Original dart is already an effective exposed surface and needs no layer shielding.
 
@@ -12,9 +12,18 @@ This is a separate aerodynamic quadrature/strip representation, not full lift on
 
 Limitations: shielding is near-coplanar quadrature, not ray tracing or a flow solution around separated stacks. Small exposed regions can be missed by quadrature. Its hard distance/normal thresholds can change exposure abruptly. Separated layers recover area but are still collapsed into one spanwise lifting-line model; this is not a resolved biplane or wake-shadow model. Remeshing or new folds in flight are unsupported.
 
-## Spanwise coupling and fallback
+## Vortex lattice and fallback
 
-`solveLiftingLine` solves a dense circulation system every aerodynamic evaluation. Strip chord is exposed area divided by current strip width. With piecewise-constant circulation and straight trailing vortices, the downwash influence at strip centre `y_i` from strip `j` is:
+`solveVortexLattice` solves a dense planar vortex-lattice system every aerodynamic evaluation: one horseshoe vortex per span station and chordwise bin (48 by default). A panel's equivalent chord is its exposed area divided by the current strip width. Each strip's bins are laid end to end, leading bin first, centred on the strip's exposed-area centroid along the body axis, so tangency points always stay a quarter chord clear of neighbouring bound vortices however the sheet deforms. The bound segment sits at the panel's quarter chord with straight trailing legs to downstream infinity; flow tangency is enforced at the three-quarter chord:
+
+```text
+sum_q a_p M_pq Gamma_q + (1 - a_p) M_pp Gamma_p = a_p V_p alpha_p
+CL_p = 2 Gamma_p / (V_p c_p)
+```
+
+`M_pq` is the normal velocity at panel `p`'s tangency point induced by a unit horseshoe `q` (Biot–Savart, planar). `a_p` is the attached fraction; it scales the row from tangency (`a = 1`) to zero circulation (`a = 0`) as the lifting-line form scaled its section slope. Lift therefore concentrates toward each strip's leading edge and its centre of pressure follows the planform: about 25% of chord for high-aspect-ratio rectangles, 18–24% at aspect ratio 1–2, and about 60% of root chord for a delta. Uniform strip loading previously placed every strip's lift at mid-chord, which made every folded design strongly nose-heavy. A deflected trailing edge changes the whole chordwise loading, so elevator trim acts as in thin-airfoil theory. Tests compare the lattice to the 2D limit, Helmbold's low-aspect-ratio lift slope and slender-wing bounds.
+
+Induced drag still uses the lifting-line downwash of the strip-summed circulation. With piecewise-constant circulation and straight trailing vortices, the downwash influence at strip centre `y_i` from strip `j` is:
 
 ```text
 D_ij = [1/(y_i - y_j,left) - 1/(y_i - y_j,right)] / (4 pi)
@@ -23,20 +32,22 @@ Gamma_i + pi c_i a_i sum_j D_ij Gamma_j = pi c_i a_i V_i alpha_i
 CL_i = 2 Gamma_i / (V_i c_i)
 ```
 
-Here `a_i` is the area-weighted attached fraction, not the two-dimensional lift slope (which is `2 pi`). Circulation jumps to zero at the free tips. The matrix has off-diagonal influence: changing incidence or chord at one strip changes neighbouring loads. Tip unloading, span/chord response and induced drag consequently emerge from this interaction. Geometry and local wind determine the area-weighted strip incidence and speed. A pivoted direct solve handles the small matrix without a circulation-history cache.
+`solveLiftingLine` remains as the reference strip solver for these equations. Here `a_i` is the area-weighted attached fraction, not the two-dimensional lift slope (which is `2 pi`). Circulation jumps to zero at the free tips. The matrix has off-diagonal influence: changing incidence or chord at one strip changes neighbouring loads. Tip unloading, span/chord response and induced drag consequently emerge from this interaction. Geometry and local wind determine the area-weighted strip incidence and speed. A pivoted direct solve handles the small matrix without a circulation-history cache.
 
-Attached loading is apportioned over attached patches. A zero-mean local incidence correction retains chordwise reflex/trim moments. Induced drag is `max(0, CL_attached w / V)`, in addition to profile drag 0.035. The nonnegative local clamp is a dissipative safeguard for distorted configurations; it suppresses local induced thrust and is not a Trefftz-plane drag calculation.
+Attached panel loading is apportioned over attached patches. A zero-mean local incidence correction retains sub-panel variations. Induced drag is `max(0, CL_attached w / V)` with the bounded attached coefficient, in addition to profile drag 0.035. The nonnegative local clamp is a dissipative safeguard for distorted configurations; it suppresses local induced thrust and is not a Trefftz-plane drag calculation.
 
 The attached fraction fades smoothly between 0.21 and 0.49 radians incidence (about 12–28 degrees), body-forward flow alignment 0.25–0.75, and panel/up alignment 0.2–0.7. Reverse flight, broadside panels, strong sideslip and large incidence therefore use the separated flat-sheet law:
 
 ```text
 CL_sep = 0.85 sin(2 alpha)
-CD_sep = 0.08 + 1.75 sin(alpha)^2
+CD_sep = 0.035 + 1.75 sin(alpha)^2
 ```
+
+The separated drag floor equals the attached profile drag. Near-vertical surfaces such as the keel are always outside the planar thin-wing model, but edge-on they only carry skin friction; the earlier 0.08 floor made keel drag exceed wing drag and held every folded design below L/D 1.
 
 Attached CL is bounded to ±1.5 before the separated contribution is added. Lift is perpendicular to the local air-relative velocity and drag opposes it. With still air, instantaneous external aerodynamic power is nonpositive, including for deforming/tumbling meshes, because the same barycentric map interpolates velocity and transfers force. A finite explicit step can still have integration error.
 
-This is **planar lifting-line**, not an implementation of AVL or a general vortex-lattice/wake solver. Sweep and nonplanarity enter through exposed area, incidence and attachment blending, not full 3D vortex geometry. There is no wake roll-up, unsteady shedding, dynamic stall, Reynolds dependence, vortex lift, ground effect or airfoil pitching-moment model. Low-aspect-ratio swept paper darts lie outside the most reliable regime. Fallback thresholds and coefficients remain unmeasured. The stall HUD is an attached-fraction diagnostic, not a measured separation boundary.
+This is a **planar vortex lattice** projected onto the current body frame, not an implementation of AVL or a general wake solver. Sweep enters through each strip's chordwise position; dihedral, keel and other nonplanarity enter through exposed area, incidence and attachment blending, not full 3D vortex geometry. There is no wake roll-up, unsteady shedding, dynamic stall, Reynolds dependence, vortex lift, ground effect or airfoil pitching-moment model. Low-aspect-ratio swept paper darts lie outside the most reliable regime. Fallback thresholds and coefficients remain unmeasured. The stall HUD is an attached-fraction diagnostic, not a measured separation boundary.
 
 The [AVL primer](https://web.mit.edu/drela/Public/web/avl/avl_doc.txt) motivates interacting thin lifting surfaces and explicitly limits attached potential-flow methods to appropriate angles and slowly varying motion. This much smaller model does not inherit AVL's capabilities or validation. An elliptic-wing analytic lifting-line comparison checks our discretization in its intended regime; it does not validate dart flight.
 

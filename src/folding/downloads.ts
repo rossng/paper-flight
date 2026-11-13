@@ -1,6 +1,6 @@
 import {geometryLicense} from './license';
 import {build,exportFold,type FoldRecipe} from './model';
-import {flightRecipe,supportsWingSpan} from './design';
+import {flightRecipe,supportsElevator,supportsWingSpan} from './design';
 import {findDesign,sheetDesigns,reuseBasis} from './library';
 import type {Parameters} from '../physics/simulation';
 
@@ -20,11 +20,11 @@ export function designFold(id:string,parameters:Parameters,count?:number){
  return {...data,file_creator:'Paper Flight',file_description:`${design.note} ${reuseBasis}`,
   'paperflight:designId':id,'paperflight:source':design.recipe.source,'paperflight:reuseBasis':reuseBasis,
   'paperflight:license':geometryLicense,
-  'paperflight:parameters':{size,span:supportsWingSpan(id)?parameters.span:1,dihedral:parameters.dihedral,paperWeight:parameters.paperWeight,material:parameters.material},
+  'paperflight:parameters':{size,span:supportsWingSpan(id)?parameters.span:1,dihedral:parameters.dihedral,elevator:supportsElevator(id)?parameters.elevator:0,paperWeight:parameters.paperWeight,material:parameters.material},
   'paperflight:materialArea':recipe.width*recipe.height};
 }
 export function foldFilename(id:string,parameters:Parameters,count?:number){
- return `paper-flight-${id}-${Math.round(parameters.size*100)}pct-${parameters.paperWeight}gsm-${parameters.dihedral}deg${supportsWingSpan(id)?`-span${Math.round(parameters.span*100)}`:''}${count===undefined?'':`-step${count}`}.fold`;
+ return `paper-flight-${id}-${Math.round(parameters.size*100)}pct-${parameters.paperWeight}gsm-${parameters.dihedral}deg${supportsWingSpan(id)?`-span${Math.round(parameters.span*100)}`:''}${parameters.elevator&&supportsElevator(id)?`-elevator${parameters.elevator}`:''}${count===undefined?'':`-step${count}`}.fold`;
 }
 /** A standard multiModel FOLD, with independent sheet/folded frame pairs. */
 export function collectionFold(parameters:Parameters){
