@@ -39,3 +39,24 @@ The common registry is `src/folding/library.ts`, backed by `recipes.ts`. The mai
 Material area, seams, rigid panels and finite numerical flight are tested. No physical throws have calibrated these studies. Folding remains zero-thickness kinematics; the flight solver’s swept self-contact and initial-layer contact do not prove collision-free folding, full stacking order or a working frictional lock. New designs retain their authored span; all expose wing angle, sheet size and material selection.
 
 See [validation results](plane-library-validation.md) for recorded checks.
+
+## Trimmed starting points
+
+Game URLs accept the fold settings (`design`, `elevator`, `dihedral`, `span`, `size`, `paperWeight`, `material`), the release (`throw` angle, launch `trim`, `height`) and `mode=throw` to open the folded plane straight in the field. Launch speed always comes from the pull.
+
+These settings came from an offline search: each design flown from hand height (1.8 m) at 6 m/s (just over half pull), elevator 0–20°, throw 0/10/20° and launch trim 0/5/10°, still air, 80 gsm. The best setting was then re-flown at 4.5 and 8 m/s and from 5 m. Distances are straight-line flight distance; they are simulation results, not physical calibration.
+
+| Design | Link | Hand, 6 m/s | 4.5 / 8 m/s | From 5 m | Untrimmed default |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Underside | `?design=underside&elevator=8&throw=10&trim=0&mode=throw` | 18.3 m, 6.6 s | 14.8 / 21.2 m | 27 m | 6.5 m |
+| Heavy Nose | `?design=heavy-nose&elevator=16&throw=10&trim=10&mode=throw` | 10.4 m, 3.2 s | 8.0 / 11.8 m | 12.7 m | 4.8 m |
+| Raven | `?design=raven&elevator=20&throw=0&trim=0&mode=throw` | 8.2 m | 5.4 / 10.7 m | 17.8 m | 4.0 m |
+| Folded Dart | `?design=dart&elevator=16&throw=0&trim=0&mode=throw` | 7.9 m | 5.8 / 9.4 m | 10.3 m | 4.5 m |
+| Hunting | `?design=hunting&throw=10&trim=0&mode=throw` | 7.5 m | 5.6 / 9.3 m | 11.9 m | 7.1 m |
+| The Stable | `?design=stable&elevator=20&throw=10&trim=0&mode=throw` | 6.6 m | 4.5 / 8.9 m | 11.7 m | 4.0 m |
+| The Buzz | `?design=buzz&elevator=20&throw=10&trim=0&mode=throw` | 6.4 m | 4.4 / 8.3 m | 10.4 m | 4.2 m |
+| The Basic | `?design=basic&elevator=8&throw=10&trim=5&mode=throw` | 5.7 m | 4.6 / 6.7 m | 6.9 m | 5.2 m |
+| Original dart | `?design=legacy&throw=10&trim=0&mode=throw` | 4.4 m | 7.3 / 2.6 m | 14.9 m | 3.7 m |
+| V-Wing | `?design=v-wing&elevator=4&throw=10&trim=5&mode=throw` | 4.4 m | 2.9 / 4.8 m | 6.9 m | 2.4 m |
+
+Hunting's winglets prevent an elevator fold. The Original dart flies best untrimmed and gently thrown; hard throws loop it. V-Wing trims near 2.6 m/s and stalls into a spin after normal throws.

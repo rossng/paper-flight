@@ -60,3 +60,9 @@ test('game URLs restore workbench settings, reject invalid numbers, and retain s
  const invalid=readDesignSettings(new URLSearchParams('size=NaN&span=100&dihedral=-1&material=bogus&paperWeight=Infinity'));
  assert.equal(invalid.size,1);assert.equal(invalid.span,1);assert.equal(invalid.dihedral,DEFAULTS.dihedral);assert.equal(invalid.material,'paper');assert.equal(invalid.paperWeight,80);
 });
+test('game URLs carry release height and launcher aim for deep links',async()=>{
+ const {readLaunchSettings}=await import('../src/folding/settings');
+ assert.equal(readDesignSettings(new URLSearchParams('height=5')).height,5);
+ assert.deepEqual(readLaunchSettings(new URLSearchParams('mode=throw&throw=4&trim=7.6')),{throwAngle:4,trim:8,field:true});
+ assert.deepEqual(readLaunchSettings(new URLSearchParams('throw=999&trim=-90')),{throwAngle:10,trim:5,field:false});
+});
