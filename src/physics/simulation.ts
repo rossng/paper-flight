@@ -22,6 +22,10 @@ const CARRY_GAP=1e-4,RESTING_CARRY_GAP=1e-5;
 const EARLY_DETECTION_PAIRS=12000;
 /** Fewest constraint sweeps per substep when extra substeps share a frame's sweeps. */
 const MIN_SWEEPS=18;
+/** Substeps for a frame in which a vertex moves faster than 0.5 m/s near the floor. */
+const MOVING_CONTACT_SUBSTEPS=8;
+/** Floor-contact cleanup passes before the first strain-convergence check (then every fourth). */
+const MIN_CLEANUP_PASSES=4;
 export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
@@ -137,7 +141,7 @@ export class Simulation {
     for(let i=0;i<this.positions.length;i++){
       const speed=length(this.velocities[i])+launchDelta;
       if(this.positions[i][1]-this.groundHeight<.03+speed*FIXED_DT)
-        contactSubsteps=Math.max(contactSubsteps,speed>.5?12:SUBSTEPS,Math.ceil(FIXED_DT*(speed+this.parameters.gravity*FIXED_DT)/.002));
+        contactSubsteps=Math.max(contactSubsteps,speed>.5?MOVING_CONTACT_SUBSTEPS:SUBSTEPS,Math.ceil(FIXED_DT*(speed+this.parameters.gravity*FIXED_DT)/.002));
     }
     const baseSubsteps=this.parameters.paperWeight<30?SUBSTEPS*3:SUBSTEPS;
     const minimum=Math.max(baseSubsteps,launchSubsteps,contactSubsteps);
@@ -231,9 +235,9 @@ export class Simulation {
         if(groundCleanup)limitEdgeStrains(x,w,edges,pass%2===0);
         if(contact)self.solveFlat(x,w,pass%2===0);
         ground.solveFlat(x,old,w,this.groundHeight,this.parameters);
-        // Most contacts converge in eight sweeps. Small triangles in dense
+        // Most contacts converge within eight sweeps. Small triangles in dense
         // folds need extra reconciliation at impact, not a looser strain bound.
-        if(groundCleanup&&pass>=7&&(pass+1)%4===0&&edgeStrainsWithin(x,edges,.05))break;
+        if(groundCleanup&&pass+1>=MIN_CLEANUP_PASSES&&(pass+1)%4===0&&edgeStrainsWithin(x,edges,.05))break;
       }
       for(let k=0;k<3*count;k++)v[k]=(x[k]-old[k])/dt;
       dampEdges(x,v,w,edges,1-Math.exp(-18*dt));
