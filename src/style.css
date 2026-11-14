@@ -115,3 +115,4 @@
  [data-mode=workbench] #library-downloads{grid-column:1/-1;grid-row:2;justify-self:center}
 }
 .elevator-choices{margin-top:6px}
+#result .share-button{background:#c5e3c4}#share-link{display:block;width:100%;margin-top:10px;padding:8px 10px;border:2px solid #243b49;border-radius:9px;background:#fffaf0;color:#243b49;font:700 12px Nunito,sans-serif}#share-status{font-size:12px;min-height:1em;margin-top:8px;color:#25846f}#share-status:empty{display:none}
