@@ -116,7 +116,7 @@ Rejected: a 12-sweep minimum outside the launch stroke was about 10% faster agai
 
 The [reference solver](reference-solver.md) showed the game falling short on range for every design, by half on the Original dart and V-Wing, because the constraint sweeps settle on a softer sheet than the model describes. It also showed where the error is not: the reference itself stays within 3.3% of its converged answer at three implicit steps per frame. The 1/360 s step is fine. The Gauss–Seidel projection is what loses accuracy, and more sweeps at the same step do not recover it (the Original dart is still 47% short at 3 × 400 sweeps).
 
-Each substep away from the floor now begins with a direct solve of its elastic response (`src/physics/elastic-solve.ts`):
+Each substep away from the floor now begins with a direct solve of its elastic response (`wasm/solver/src/elastic.rs`, with the symbolic set-up in `src/physics/elastic-solve.ts`):
 
 - Newton steps on the same implicit-Euler problem the sweeps approximate, mass term plus membrane and hinge energy, with a sparse LDLᵀ factorisation. The ordering and fill depend only on the mesh and are computed once.
 - It starts from the previous substep's elastic correction, which brings it to one or two Newton steps in flight. One factorisation serves up to three steps of a solve.
@@ -165,3 +165,7 @@ Peak transverse penetration between layers over whole flights, landing included,
 What did not work, measured: a single undamped Newton step per substep (unstable on several designs); accepting a partly converged solve (blows up on impact, because the unbalanced stiff forces become velocities); keeping a factorisation across substeps (the membrane's stiff directions turn with the sheet, so Newton needs four to six steps and a line search instead of one or two); and the same sweep budget as more substeps with fewer sweeps each (helps the layered designs, leaves the Original dart 50% short).
 
 Limits: after touchdown the solver is the sweep solver, so sliding and settling are unchanged and unvalidated. A flight's sheet is stiffer in the air than in a substep near the floor. Tissue was only spot-checked: the first five designs fly, at 0.9–1.1 times the previous speed. No browser run was made for this change.
+
+## WebAssembly (2026-11-14)
+
+The solver described above is now a Rust crate compiled to WebAssembly (`wasm/solver/`), with the same algorithm, schedule and constants; the TypeScript implementation is gone. It is 1.5–1.7× faster per airborne frame, and eight of the ten designs run faster than real time over the whole default flight. [The solver in WebAssembly](wasm-solver.md) has the checks, the timings and where the time goes. File names in the sections above refer to the TypeScript solver as it was when they were written.

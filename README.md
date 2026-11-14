@@ -20,7 +20,13 @@ To launch with the keyboard, focus the plane and use the arrow keys to aim and c
 
 ## Run locally
 
-You need Node.js 22.12 or newer and a modern browser with WebGL 2 support. The project uses Node 24 for automated checks.
+You need Node.js 22.12 or newer, a Rust toolchain with the WebAssembly target, and a modern browser with WebGL 2 support. The project uses Node 24 for automated checks.
+
+The flight solver is written in Rust and compiled to WebAssembly when you start the dev server, build or test. Install Rust from [rustup.rs](https://rustup.rs), then add the target once:
+
+```sh
+rustup target add wasm32-unknown-unknown
+```
 
 From the project folder:
 
@@ -43,7 +49,7 @@ npm run preview    # Preview the built site locally
 Run `npm run test:full` when changing physics or folding.
 
 To see how far the real-time solver is from an accurate solution of the same model, run
-`npm run reference` (needs a Rust toolchain; see [the reference solver](docs/reference-solver.md)).
+`npm run reference` (see [the reference solver](docs/reference-solver.md)).
 It is a development tool and is not part of CI.
 
 For browser UI checks, start Vite and an isolated Chrome instance with remote
@@ -66,6 +72,7 @@ Technical notes and findings live in [`docs/`](docs/):
 - [Physics tests and results](docs/physics-validation.md)
 - [Performance report](docs/performance.md)
 - [Real-time solver](docs/realtime-solver.md)
+- [The solver in WebAssembly](docs/wasm-solver.md)
 - [Reference solver](docs/reference-solver.md)
 - [Assessment of the flight model](docs/model-assessment.md)
 - [Plane library and downloads](docs/plane-library.md)

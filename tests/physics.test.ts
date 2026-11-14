@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDart, hingeAngle } from '../src/geometry/dart';
-import { hingeGradients } from '../src/physics/constraints';
+import { hingeBatch, solveHinges } from '../src/physics/constraints';
 import { aerodynamicLoads, coefficients, centerOfLift, type PanelLoad } from '../src/physics/aerodynamics';
 import { Simulation, FixedClock } from '../src/physics/simulation';
 import { dot, length, sub, type V3 } from '../src/physics/math';
@@ -14,7 +14,11 @@ test('dart topology is non-degenerate, mass is 5 g and creases are distinct',()=
 test('signed hinge gradients agree with finite differences, including flat paper',()=>{
  for(const z of [0,0.04,-0.08]){
  const p:V3[]=[[0,0.13,0],[0.02,-0.1,z],[0,0,0],[0.2,0,0]];
- const g=hingeGradients(...p as [V3,V3,V3,V3])!;
+ // One XPBD projection of an uncompliant hinge moves vertex i by w_i g_i λ: with unit
+ // inverse masses the solver's gradients are the displacements over the multiplier.
+ const hinge=hingeBatch([{ids:[0,1,2,3],rest:hingeAngle(...p as [V3,V3,V3,V3])+.3,crease:false,weight:1,lambda:0}]),x=Float64Array.from(p.flat());
+ solveHinges(x,[1,1,1,1],hinge,true);
+ const g=p.map((v,i)=>v.map((value,d)=>(x[3*i+d]-value)/hinge.lambda[0]));
  for(let i=0;i<4;i++)for(let d=0;d<3;d++){
  p[i][d]+=1e-7;const a=hingeAngle(...p as [V3,V3,V3,V3]);p[i][d]-=2e-7;const b=hingeAngle(...p as [V3,V3,V3,V3]);p[i][d]+=1e-7;
  assert.ok(Math.abs((a-b)/2e-7-g[i][d])<1e-5,`gradient ${i},${d}`);

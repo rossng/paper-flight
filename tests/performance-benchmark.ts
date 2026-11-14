@@ -52,7 +52,7 @@ for(const name of cases.filter(c=>selected==='all'||c===selected)){
    if(run===0&&((step+1)%12===0||step===steps-1||!sim.active)){
     const candidates=structuredClone(sim.contactCandidates);
     const contacts=detectLayerContacts(sim.positions,sim.positions,candidates);
-    samples.push({step:step+1,status:sim.status,substeps:inner,metrics,peakDeformation:sim.peakDeformation,selfContact:sim.selfContact?{stats:{...sim.selfContact.stats},contacts:structuredClone(sim.selfContact.contacts)}:undefined,positions:sim.positions.map(p=>[...p]),velocities:sim.velocities.map(p=>[...p]),forces:sim.forces.map(p=>[...p]),plastic:sim.mesh.hinges.map(h=>h.plasticOffset??0),contactCount:contacts.length,contactSigns:candidates.map((c:any)=>c.sign)});
+    samples.push({step:step+1,status:sim.status,substeps:inner,metrics,peakDeformation:sim.peakDeformation,selfContact:sim.selfContact?{stats:{...sim.selfContact.stats},contacts:structuredClone(sim.selfContacts)}:undefined,positions:sim.positions.map(p=>[...p]),velocities:sim.velocities.map(p=>[...p]),forces:sim.forces.map(p=>[...p]),plastic:sim.mesh.hinges.map(h=>h.plasticOffset??0),contactCount:contacts.length,contactSigns:candidates.map((c:any)=>c.sign)});
    }
   }
   if(run>=0)totals.push(total);

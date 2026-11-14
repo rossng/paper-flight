@@ -9,3 +9,7 @@ docs/performance/*.json.gz
 
 # Reference solver build output
 reference/solver/target/
+
+# Flight solver build output (npm run wasm)
+wasm/solver/target/
+src/physics/solver.wasm

@@ -1,3 +1,4 @@
+import { kernel } from './solver';
 export const MAX_PULL=100;
 export const MAX_LAUNCH_SPEED=11;
 export const RELEASE_DURATION_MS=125;
@@ -27,13 +28,10 @@ export function springRemaining(progress:number){return Math.cos(Math.max(0,Math
  * the existing equal-pull speed control. This prescribes the unloaded spring
  * profile; aerodynamic drag and gravity still change the actual exit velocity. */
 export function springSpeed(time:number,speed:number,duration=RELEASE_DURATION_MS/1000){
- if(time<=0)return 0;
- if(duration<=0||time>=duration)return speed;
- return speed*Math.sin(time/duration*Math.PI/2);
+ return kernel.call.spring_speed(time,speed,duration);
 }
 /** Exact impulse per unit mass across a substep, including detachment. A zero
  * duration is the explicit legacy initial-velocity mode, handled by launch(). */
 export function springVelocityDelta(time:number,dt:number,speed:number,duration=RELEASE_DURATION_MS/1000){
- if(duration<=0||dt<=0||time>=duration)return 0;
- return springSpeed(time+dt,speed,duration)-springSpeed(time,speed,duration);
+ return kernel.call.spring_velocity_delta(time,dt,speed,duration);
 }
