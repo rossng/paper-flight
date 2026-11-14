@@ -20,7 +20,7 @@ The two solvers share the problem set-up and nothing else. `reference/export.ts`
 | | Game (`src/physics`) | Reference (`reference/solver`) |
 | --- | --- | --- |
 | Time integration | Position-based (XPBD), 3 or more substeps per 1/120 s | Implicit BDF2, 64 steps per 1/120 s |
-| Elastic solve | 18–24 Gauss–Seidel sweeps; stiffness depends on the sweep count | Newton with a sparse direct solve, to 0.1 nm |
+| Elastic solve | Newton with a sparse direct solve to 1 µm, without contact, then 9–12 Gauss–Seidel sweeps; sweeps alone near the floor | Newton with a sparse direct solve, contact included, to 0.1 nm |
 | Stretch | Compliant constraints plus a ±2% strain limiter | Membrane energy only; no limiter is needed |
 | Air loads | Sampled as often as stability needs and held; shielding once per frame; one quadrature patch per clipped polygon | Every step, shielding every step, quadrature patches of at most 25 mm² |
 | Layer contact | Rest-coplanar candidates on a scan schedule, swept contact, contacts carried between substeps | Every vertex against every other panel, every step |
@@ -41,9 +41,9 @@ Layers are still ideal: zero thickness, and no nesting of layers around a shared
 
 - **Same air loads.** With the game's lattice and one patch per polygon, the Rust lifting surface reproduces the game's nodal air forces to 1 part in 10⁹ on mid-flight states of five design and weather combinations, including tissue in gusts and turbulence.
 - **Same elastic energy.** Membrane and bending energy match the game's constraint definitions to 1 part in 10⁹, and the forces are the gradient of that energy.
-- **The game converges to it.** Given enough sweeps and substeps the game approaches the reference, on flights where the stacking side does not matter:
+- **The game's sweep solver converges to it.** Given enough sweeps and substeps the sweeps alone approach the reference, on flights where the stacking side does not matter:
 
-  | Game setting (substeps × sweeps) | Original dart range | V-Wing range | Underside range |
+  | Sweeps alone (substeps × sweeps) | Original dart range | V-Wing range | Underside range |
   | --- | ---: | ---: | ---: |
   | Default (automatic × 24) | 3.89 m | 2.58 m | 5.78 m |
   | 12 × 48–60 | 4.76 m | 5.06 m | 6.02 m |
@@ -73,22 +73,22 @@ Solver unit tests cover the sparse factorisation, energy gradients against finit
 
 `npm run reference` flies each launch with both solvers up to first touchdown and prints, per flight: range and air time from each, the distance between the two centres of mass at 0.25 s, 0.5 s and 1 s, the angle between the two nose directions at 0.5 s, and peak in-flight flex. Flights are sensitive to small differences, so late separations grow quickly; the early checkpoints and a spread of launch speeds (`--speeds`) are the stable signals. `--json out.json` writes the table for before/after comparison of a solver change, and `--game key=value` changes a setting for the game's run only (for example `--game iterations=48`).
 
-Default launch (80 gsm paper, 6 m/s, still air), measured 2026-11-14 on the commit after `705211c`:
+Default launch (80 gsm paper, 6 m/s, still air), measured 2026-11-14. "Sweeps alone" is the game before its [direct elastic solve](realtime-solver.md) (`--game elasticSolve=sweeps`), which this comparison led to:
 
-| Design | Reference range | Game range | Difference | Apart at 0.25 s | Apart at 0.5 s | Peak flex, reference / game |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Original dart | 8.43 m | 3.89 m | −54% | 1.0 cm | 29.3 cm | 13.0 / 17.6 mm |
-| The Basic | 5.53 m | 4.89 m | −12% | 1.1 cm | 6.4 cm | 3.9 / 2.5 mm |
-| Folded Dart | 4.12 m | 3.93 m | −5% | 0.4 cm | 4.4 cm | 0.2 / 2.1 mm |
-| The Stable | 3.52 m | 3.49 m | −1% | 0.7 cm | 1.9 cm | 0.3 / 0.9 mm |
-| Heavy Nose | 4.50 m | 4.22 m | −6% | 1.3 cm | 5.9 cm | 0.4 / 2.1 mm |
-| Hunting | 8.67 m | 7.21 m | −17% | 1.0 cm | 5.7 cm | 0.2 / 8.2 mm |
-| The Buzz | 4.17 m | 3.98 m | −4% | 0.4 cm | 3.6 cm | 0.1 / 2.6 mm |
-| V-Wing | 5.28 m | 2.58 m | −51% | 1.3 cm | 19.7 cm | 0.3 / 37.7 mm |
-| Underside | 6.25 m | 5.78 m | −8% | 1.7 cm | 6.0 cm | 0.2 / 1.3 mm |
-| Raven | 3.49 m | 3.48 m | 0% | 0.4 cm | 0.5 cm | 0.0 / 0.4 mm |
+| Design | Reference range | Sweeps alone | Game now | Apart at 0.5 s, before → now | Peak flex, reference / game now |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original dart | 8.43 m | 3.89 m (−54%) | 8.35 m (−1%) | 29.3 → 0.4 cm | 13.0 / 13.1 mm |
+| The Basic | 5.53 m | 4.89 m (−12%) | 5.41 m (−2%) | 6.4 → 2.6 cm | 3.9 / 3.2 mm |
+| Folded Dart | 4.12 m | 3.93 m (−5%) | 4.11 m (0%) | 4.4 → 0.9 cm | 0.2 / 0.3 mm |
+| The Stable | 3.52 m | 3.49 m (−1%) | 3.49 m (−1%) | 1.9 → 1.7 cm | 0.3 / 0.7 mm |
+| Heavy Nose | 4.50 m | 4.22 m (−6%) | 4.38 m (−3%) | 5.9 → 3.3 cm | 0.4 / 0.7 mm |
+| Hunting | 8.67 m | 7.21 m (−17%) | 8.87 m (+2%) | 5.7 → 0.9 cm | 0.2 / 0.9 mm |
+| The Buzz | 4.17 m | 3.98 m (−4%) | 4.16 m (0%) | 3.6 → 0.6 cm | 0.1 / 0.1 mm |
+| V-Wing | 5.28 m | 2.58 m (−51%) | 5.36 m (+2%) | 19.7 → 0.9 cm | 0.3 / 0.7 mm |
+| Underside | 6.25 m | 5.78 m (−8%) | 6.05 m (−3%) | 6.0 → 3.7 cm | 0.2 / 0.2 mm |
+| Raven | 3.49 m | 3.48 m (0%) | 3.50 m (0%) | 0.5 → 0.2 cm | 0.0 / 0.0 mm |
 
-Mean range error 16%, worst 54%; mean separation at 0.5 s is 8.3 cm. The game is short on every design, and by half on the Original dart and V-Wing. In both of those the game's sheet flexes far more than the converged model does (37.7 mm against 0.3 mm on V-Wing), and the game's own range rises to the reference value when it is given more sweeps. The under-converged constraint solve is acting as a softer sheet.
+With sweeps alone the game was short on every design (mean range error 16%, worst 54%), because the under-converged constraint solve acts as a softer sheet: V-Wing flexed 37.7 mm against 0.3 mm. With the direct solve the mean error is 1.4% and the worst 3%.
 
 Two things other than solver accuracy enter this table. The fold-order stacking is a modelling difference: with `--first-opening-sides` the reference flies The Basic 6.43 m instead of 5.53 m, The Stable 3.50 m instead of 3.52 m and Heavy Nose 4.41 m instead of 4.50 m. And five designs (Folded Dart, Stable, Heavy Nose, Buzz, Raven) trim at zero lift without elevator, so their default flights are close to ballistic and exercise little of the solver; `--set elevator=6` gives them a glide.
 

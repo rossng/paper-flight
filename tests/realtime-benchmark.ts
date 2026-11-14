@@ -1,18 +1,19 @@
 /** Complete default-launch flights for every design: simulated seconds per
  * wall-clock second of solver time, split at touchdown. A ratio below one means
  * the solver alone cannot keep pace with real time on this machine.
- * Usage: npm run benchmark:realtime -- [design] [--material tissue] */
+ * Usage: npm run benchmark:realtime -- [design] [--material tissue] [--sweeps]
+ * --sweeps leaves the elastic response to the constraint sweeps (the solver before the direct solve). */
 import { Simulation, DEFAULTS, FIXED_DT } from '../src/physics/simulation';
 import { designMesh } from '../src/folding/design';
 import { materialSettings, type MaterialId } from '../src/physics/materials';
 import { designs } from '../src/folding/library';
 
-const args=process.argv.slice(2),flag=args.indexOf('--material');
+const args=process.argv.slice(2),flag=args.indexOf('--material'),sweeps=args.includes('--sweeps');
 const material=(flag>=0?args[flag+1]:'paper') as MaterialId,only=args.find((arg,i)=>!arg.startsWith('--')&&(flag<0||i!==flag+1));
 const ratio=(steps:number,ms:number)=>ms?Number((steps*FIXED_DT*1000/ms).toFixed(2)):null;
 for(const design of designs){
   if(only&&design.id!==only)continue;
-  const parameters={...DEFAULTS,...materialSettings(material)};
+  const parameters={...DEFAULTS,...materialSettings(material),...(sweeps?{elasticSolve:'sweeps' as const}:{})};
   const run=()=>{
     const sim=new Simulation(parameters,design.id==='legacy'?undefined:designMesh(design.id,parameters));sim.launch();
     const phase={air:{steps:0,ms:0},ground:{steps:0,ms:0}};let worst=0;

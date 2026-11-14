@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { caseFor, gameSimulation, type Case } from '../export';
-import { caseLabel, solve, solverDirectory, staticLoads } from '../run';
+import { caseLabel, solve, solveAll, solverDirectory, staticLoads } from '../run';
 import { flyGame, compare } from '../compare';
 import { foldHistory, stackingSides } from '../stack-order';
 import { aerodynamicLoads } from '../../src/physics/aerodynamics';
@@ -59,12 +59,13 @@ test(`elastic energy matches the game's constraint definitions on ${design}`,()=
   const reference=staticLoads(flight,p,sim.velocities);
   assert.ok(Math.abs(reference.membraneEnergy/membrane-1)<1e-9,`membrane ${reference.membraneEnergy} vs ${membrane}`);
   assert.ok(Math.abs(reference.bendingEnergy/bending-1)<1e-9,`bending ${reference.bendingEnergy} vs ${bending}`);
-  // Forces are the energy gradient: check by a directional finite difference.
-  const direction=p.map((_,i)=>[Math.sin(i),Math.cos(2*i),Math.sin(3*i+1)]),step=1e-7;
+  // Forces are the energy gradient: check by a directional finite difference. In flight the
+  // membrane and bending parts nearly cancel, so the tolerance is set by their gross size.
+  const direction=p.map((_,i)=>[Math.sin(i),Math.cos(2*i),Math.sin(3*i+1)]),step=1e-8;
   const moved=(sign:number)=>staticLoads(flight,p.map((q,i)=>q.map((v,d)=>v+sign*step*direction[i][d])),sim.velocities);
-  const plus=moved(1),minus=moved(-1),slope=(plus.membraneEnergy+plus.bendingEnergy-minus.membraneEnergy-minus.bendingEnergy)/(2*step);
+  const plus=moved(1),minus=moved(-1),stretch=(plus.membraneEnergy-minus.membraneEnergy)/(2*step),bend=(plus.bendingEnergy-minus.bendingEnergy)/(2*step);
   const work=-reference.elastic.reduce((sum,f,k)=>sum+f*direction[Math.floor(k/3)][k%3],0);
-  assert.ok(Math.abs(slope-work)<1e-5*Math.max(Math.abs(work),1e-6),`energy slope ${slope} vs force work ${work}`);
+  assert.ok(Math.abs(stretch+bend-work)<1e-3*(Math.abs(stretch)+Math.abs(bend)),`energy slope ${stretch+bend} vs force work ${work}`);
 });
 
 test('a corner folded over the sheet lies above it',()=>{
@@ -94,11 +95,23 @@ test('fold order is the same for every vertex of a pair of panels, and opposite 
   }
 });
 
-test('the game converges towards the reference as its sweeps and substeps increase',async()=>{
+test('the sweep solver converges towards the reference as its sweeps and substeps increase',async()=>{
   const flight=caseFor('legacy'),reference=await solve({test:flight,overrides:{},options:{maxTime:.5}},undefined,false);
-  const coarse=compare(reference,flyGame(flight)),fine=compare(reference,flyGame(flight,{substeps:48,iterations:100}));
+  const coarse=compare(reference,flyGame(flight,{elasticSolve:'sweeps'})),fine=compare(reference,flyGame(flight,{elasticSolve:'sweeps',substeps:48,iterations:100}));
   assert.ok(fine.separation[.25]!<.01,`converged game is ${fine.separation[.25]} m from the reference at 0.25 s`);
   assert.ok(fine.separation[.25]!<.5*coarse.separation[.25]!,`default ${coarse.separation[.25]} m, converged ${fine.separation[.25]} m`);
+});
+
+test('the game flies the default launch within a few percent of the reference',async()=>{
+  // The two flights where under-converged sweeps cost half the range, and a layered glider.
+  const flights=['legacy','v-wing','hunting'].map(design=>({test:caseFor(design),overrides:{}}));
+  const references=await solveAll(flights,3);
+  references.forEach((reference,i)=>{
+    const game=flyGame(flights[i].test),error=game.flightDistance/reference.flightDistance-1;
+    assert.ok(Math.abs(error)<.05,`${reference.case.label}: game ${game.flightDistance.toFixed(2)} m, reference ${reference.flightDistance.toFixed(2)} m`);
+    const sweeps=flyGame(flights[i].test,{elasticSolve:'sweeps'});
+    assert.ok(Math.abs(sweeps.flightDistance/reference.flightDistance-1)>2*Math.abs(error),`${reference.case.label}: sweeps alone are no worse`);
+  });
 });
 
 test('energy is accounted for through a launch and free flight',async()=>{

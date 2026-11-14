@@ -1,3 +1,4 @@
+import { ElasticSolver } from './elastic-solve';
 import { buildMembranes, membraneBatch, solveMembranes, type Membrane, type MembraneBatch } from './membrane';
 import { buildLiftingSurface, type LiftingSurface } from './lifting-surface';
 import { buildContactCandidates, LayerContactSolver, type ContactCandidate } from './layer-contact';
@@ -30,8 +31,8 @@ export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; aeroStations:number; aeroChordPanels:number; stackCoupling:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
-export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',aeroStations:12,aeroChordPanels:4,stackCoupling:1,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
+export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; /** 'direct' solves each substep's elastic response exactly before the constraint sweeps; 'sweeps' leaves it to them. */ elasticSolve:'direct'|'sweeps'; newtonIterations:number; /** Fraction of `iterations` run after a direct elastic solve, where sweeps only reconcile contact. */ contactSweepShare:number; aeroStations:number; aeroChordPanels:number; stackCoupling:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',elasticSolve:'direct',newtonIterations:16,contactSweepShare:.5,aeroStations:12,aeroChordPanels:4,stackCoupling:1,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'settling'|'landed'|'finished'|'error';
 export const isActiveStatus=(status:Status)=>status==='flying'||status==='settling';
 export interface Touchdown { time:number; center:V3; distance:number }
@@ -52,7 +53,7 @@ export class Simulation {
   // between substeps, so readers and external edits see a consistent state.
   private x:Float64Array; private xOld:Float64Array; private v:Float64Array; private w:Float64Array; private air:Float64Array;
   private exposure={values:new Float64Array(0),valid:false}; private frame=0;
-  private hingeBatch:HingeBatch; private edgeBatch:EdgeBatch; private membraneBatch:MembraneBatch;
+  private hingeBatch:HingeBatch; private edgeBatch:EdgeBatch; private membraneBatch:MembraneBatch; private elastic:ElasticSolver; private sweepStart:Float64Array;
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
     this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
     this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80,this.parameters.elevator);this.invMass=this.mesh.masses.map(m=>1/m);
@@ -63,8 +64,9 @@ export class Simulation {
     this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness),this.parameters.aeroChordPanels);
     this.layerContact=new LayerContactSolver(buildContactCandidates(this.mesh));this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);
     const size=this.mesh.rest.length*3;
-    this.x=new Float64Array(size);this.xOld=new Float64Array(size);this.v=new Float64Array(size);this.air=new Float64Array(size);this.w=new Float64Array(this.mesh.rest.length);
+    this.sweepStart=new Float64Array(size);this.x=new Float64Array(size);this.xOld=new Float64Array(size);this.v=new Float64Array(size);this.air=new Float64Array(size);this.w=new Float64Array(this.mesh.rest.length);
     this.hingeBatch=hingeBatch(this.mesh.hinges);this.edgeBatch=edgeBatch(this.mesh.edges);this.membraneBatch=membraneBatch(this.membranes);
+    this.elastic=new ElasticSolver(this.mesh.rest.length,this.mesh.faces,this.mesh.hinges);
     this.reset();
   }
   get active(){return isActiveStatus(this.status);}
@@ -77,7 +79,7 @@ export class Simulation {
     return c;
   }
   reset() {
-    this.pendingStep=undefined;this.frame=0;this.exposure.valid=false;
+    this.pendingStep=undefined;this.frame=0;this.exposure.valid=false;this.elastic.reset();
     this.selfContact.reset();
     this.groundContact.reset();this.touchdown=undefined;this.groundDistance=0;this.quietTime=0;
     for(const c of this.layerContact.candidates){c.sideChosen=false;if(c.sideState)c.sideState.side=undefined;}
@@ -200,8 +202,13 @@ export class Simulation {
         v[k]+=dt*force[0]*weight;v[k+1]+=dt*force[1]*weight;v[k+2]+=dt*force[2]*weight;
         x[k]+=dt*v[k];x[k+1]+=dt*v[k+1];x[k+2]+=dt*v[k+2];
       }
-      membranes.lambda.fill(0);hinges.lambda.fill(0);
       for(let j=0;j<this.mesh.hinges.length;j++)setHingeOffset(hinges,j,this.mesh.hinges[j].plasticOffset??0);
+      // Elastic response first, exactly; the sweeps below then start from positions and
+      // multipliers that satisfy every membrane and hinge, and reconcile contact.
+      // Near the floor the sheet is held bent by contact, where Newton on the elastic
+      // energy alone converges slowly and the sweeps are the better tool.
+      const solved=this.parameters.elasticSolve==='direct'&&!contactSubsteps&&this.elastic.solve(x,this.mesh.masses,dt,membranes,hinges,this.parameters.newtonIterations);
+      if(!solved){membranes.lambda.fill(0);hinges.lambda.fill(0);}
       if(contact)layers.detect(x,old,substep===0&&frame%LAYER_SCAN_FRAMES===0);else layers.count=0;
       self.beginStep();
       // Contacts that still touch, or hover just apart, stay active from the
@@ -211,9 +218,16 @@ export class Simulation {
       ground.reset();
       // Small meshes can afford the early swept detection as well.
       const early=contact&&self.pairCount<=EARLY_DETECTION_PAIRS;
-      for(let iteration=0;iteration<iterations;iteration++){
+      // After a direct elastic solve the sweeps only act where contact, the floor or the
+      // strain envelope does. Once a sweep moves nothing, one closing sweep (which runs the
+      // last swept detection) ends the loop.
+      const direct=solved,before=this.sweepStart;
+      let settled=false;
+      const sweeps=direct?Math.max(2,Math.ceil(iterations*this.parameters.contactSweepShare)):iterations;
+      for(let iteration=0;iteration<sweeps;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
-        const forward=iteration%2===0;
+        const forward=iteration%2===0,closing=settled||iteration===sweeps-1;
+        if(direct&&!closing)before.set(x);
         solveMembranes(x,w,membranes,forward);
         solveHinges(x,w,hinges,forward);
         if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(x,w,tie);
@@ -223,10 +237,16 @@ export class Simulation {
           // Include structural projection in the sweep, not only free motion.
           // Contact is last so the strain limiter cannot silently undo it.
           // Swept detection on the last sweep adds every fresh crossing.
-          if((early&&iteration===0)||iteration===iterations-1)self.detectFlat(old,x);
+          if((early&&iteration===0)||closing)self.detectFlat(old,x);
           self.solveFlat(x,w,forward,iteration);
         }
         ground.solveFlat(x,old,w,this.groundHeight,this.parameters);
+        if(closing)break;
+        if(direct){
+          let moved=0;
+          for(let k=0;k<3*count;k++){const change=Math.abs(x[k]-before[k]);if(change>moved)moved=change;}
+          settled=moved<1e-10;
+        }
       }
       const groundCleanup=ground.touched;
       for(let pass=0;pass<(groundCleanup?32:contact?4:0);pass++){
