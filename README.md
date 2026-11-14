@@ -10,6 +10,7 @@ Fold a paper plane, launch it, and see how far it flies. Try different designs, 
 2. Use **Next fold** to fold one step at a time, or **Fold plane** to finish. Drag to look around and scroll or pinch to zoom.
 3. Go to the launcher. Set the nose angle, release height, and weather, then pull the plane back, aim, and release.
 4. After landing, retry or choose **Explore flight** to watch the replay. Open **Inspect** to see bending, paper layers, and lift.
+5. Choose **Share my plane** to send a friend a link. It opens your plane, throw angle, trim, release height and weather in the field, with your distance to beat. Phones use the share sheet; desktops copy the link.
 
 After touchdown, the plane can slide, flex and settle on the textured ground. Replay includes the landing, with separate jumps to touchdown and the end. Distance and airtime stop at first contact; the result also shows ground travel.
 
