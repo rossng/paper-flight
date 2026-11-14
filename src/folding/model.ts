@@ -6,7 +6,11 @@ export interface FoldOperation {
  id:string; label:string; axis:[V3,V3]; movingNormal:V3; angleDegrees:number;
  layers?:{ includeTag?:string; excludeTag?:string };
 }
-export interface FoldRecipe { id:string; name:string; source:string; width:number; height:number; gsm:number; operations:FoldOperation[] }
+export interface FoldRecipe { id:string; name:string; source:string; width:number; height:number; gsm:number; operations:FoldOperation[];
+ /** Wing deployment is baked into later folds; span and wing-angle controls do not apply. */
+ fixedWings?:boolean;
+ /** Rigid re-orientation before flight: tail-first, or an unfolded sheet held flat. */
+ pose?:'backwards'|'flat'; }
 export interface FoldState { panels:Panel[]; applied:FoldOperation[]; recipe:FoldRecipe }
 const EPS=1e-9;
 export function materialArea(points:UV[]){return Math.abs(points.reduce((sum,p,i)=>{const q=points[(i+1)%points.length];return sum+p[0]*q[1]-q[0]*p[1];},0))/2;}

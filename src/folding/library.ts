@@ -1,9 +1,10 @@
 import {recipes} from './recipes';
+import {funDesigns} from './fun-recipes';
 import type {FoldRecipe} from './model';
 
 export interface PlaneDesign {
  id:string; name:string; detail:string; note:string;
- kind:'sheet'|'effective'; adjustableSpan:boolean; recipe?:FoldRecipe;
+ kind:'sheet'|'effective'|'fun'; adjustableSpan:boolean; recipe?:FoldRecipe;
 }
 const details:Record<string,{name:string;detail:string;note:string;adjustableSpan?:boolean}>={
  basic:{name:'The Basic',detail:'Broad wings',note:'Independent reconstruction of a conventional corner-fold plane.',adjustableSpan:true},
@@ -21,5 +22,8 @@ export const designs:PlaneDesign[]=[
  ...recipes.map(recipe=>({id:recipe.id,...details[recipe.id],kind:'sheet' as const,adjustableSpan:details[recipe.id].adjustableSpan??false,recipe})),
 ];
 export const sheetDesigns=designs.filter(d=>d.kind==='sheet');
-export function findDesign(id:string){return designs.find(d=>d.id===id);}
+/** Experimental fun designs (fun-recipes.ts): offered in the picker only, outside the curated library. */
+export const funPlaneDesigns:PlaneDesign[]=funDesigns.map(({recipe,detail})=>({id:recipe.id,name:recipe.name,detail,note:'Experimental fun design. Wing deployment is fixed; span and wing-angle controls do not apply.',kind:'fun' as const,adjustableSpan:false,recipe}));
+export const pickerDesigns=[...designs,...funPlaneDesigns];
+export function findDesign(id:string){return pickerDesigns.find(d=>d.id===id);}
 export const reuseBasis='Independently authored Paper Flight coordinates and instructions, Blue Oak Model License 1.0.0. Reference links are attribution only; no third-party templates, photographs or downloaded geometry are included.';
