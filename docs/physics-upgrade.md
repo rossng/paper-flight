@@ -124,7 +124,7 @@ Near-ground adaptive stepping limits predicted motion to roughly 2 mm per subste
 
 ## Integration, replay and verification
 
-The outer frame remains 1/120 s with at least three substeps (nine for tissue). Automatic stepping estimates the fastest explicit aerodynamic damping rate `rho_air pi V A_tributary / mass` and increases substeps to keep `dt rate <= 0.8`, with a 96-substep ceiling. This is a stability heuristic, not a rigorous error controller. `substeps` can override it for controlled convergence experiments. `iterations` defaults to 24 alternating sweeps.
+The outer frame remains 1/120 s with at least three substeps (nine for tissue). Automatic stepping estimates the fastest explicit aerodynamic damping rate `rho_air pi V A_tributary / mass` and increases substeps to keep `dt rate <= 0.8`, with a 96-substep ceiling. This is a stability heuristic, not a rigorous error controller. `substeps` can override it for controlled convergence experiments. `iterations` defaults to 24 alternating sweeps. Away from the floor each substep first solves its elastic response directly (Newton with a sparse factorisation), and the sweeps then reconcile contact with half that count; see [the real-time solver notes](realtime-solver.md).
 
 An edge-strain inequality targets ±2% as a near-inextensible **numerical safety envelope** for this no-tearing game. It is inactive inside that band and is not a measured yield or failure model. Other constraints can leave larger residual strain with finite sweeps, particularly on tiny/skinny triangles. Extreme flexible flight still needs more resolution; finite output alone is not physical validation. Pairwise axial damping retains the original internal damping mechanism.
 

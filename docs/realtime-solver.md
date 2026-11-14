@@ -111,3 +111,57 @@ Whole-flight ratios are not like for like across the three columns: flights now 
 Peak transverse penetration after touchdown over the same launches: Folded Dart 2.3 mm before, 2.4 mm now; Heavy Nose 1.7 mm before, 2.4 mm now. Peak edge strain stays at 2%.
 
 Rejected: a 12-sweep minimum outside the launch stroke was about 10% faster again but gave 35% momentary edge strain on Raven at first impact (4% with 18 sweeps).
+
+## Direct elastic solve (2026-11-14, after the reference solver)
+
+The [reference solver](reference-solver.md) showed the game falling short on range for every design, by half on the Original dart and V-Wing, because the constraint sweeps settle on a softer sheet than the model describes. It also showed where the error is not: the reference itself stays within 3.3% of its converged answer at three implicit steps per frame. The 1/360 s step is fine. The Gauss–Seidel projection is what loses accuracy, and more sweeps at the same step do not recover it (the Original dart is still 47% short at 3 × 400 sweeps).
+
+Each substep away from the floor now begins with a direct solve of its elastic response (`src/physics/elastic-solve.ts`):
+
+- Newton steps on the same implicit-Euler problem the sweeps approximate, mass term plus membrane and hinge energy, with a sparse LDLᵀ factorisation. The ordering and fill depend only on the mesh and are computed once.
+- It starts from the previous substep's elastic correction, which brings it to one or two Newton steps in flight. One factorisation serves up to three steps of a solve.
+- A backtracking line search guards each step. The solve must converge to 1 µm within `newtonIterations` (default 16); otherwise the substep falls back to sweeps alone, as before.
+- The sweeps then start from positions and multipliers that already satisfy every membrane and hinge, so they only reconcile layer contact, self-contact and the strain envelope. They run `contactSweepShare` (default half) of `iterations`, and stop early once a sweep moves nothing. On the Original dart, which has no layers, that is almost always after one.
+- Substeps with a vertex near the floor use sweeps alone. A sheet held bent by contact is where Newton on the elastic energy alone converges slowly, and landing is not what the reference validates.
+
+`elasticSolve: 'sweeps'` restores the previous solver, and `npm run benchmark:realtime -- --sweeps` times it.
+
+Range to first touchdown against the reference, default launch:
+
+| Design | Reference | Sweeps alone | Direct solve |
+| --- | ---: | ---: | ---: |
+| Original dart | 8.43 m | 3.89 m (−54%) | 8.35 m (−1%) |
+| The Basic | 5.53 m | 4.89 m (−12%) | 5.41 m (−2%) |
+| Folded Dart | 4.12 m | 3.93 m (−5%) | 4.11 m (0%) |
+| The Stable | 3.52 m | 3.49 m (−1%) | 3.49 m (−1%) |
+| Heavy Nose | 4.50 m | 4.22 m (−6%) | 4.38 m (−3%) |
+| Hunting | 8.67 m | 7.21 m (−17%) | 8.87 m (+2%) |
+| The Buzz | 4.17 m | 3.98 m (−4%) | 4.16 m (0%) |
+| V-Wing | 5.28 m | 2.58 m (−51%) | 5.36 m (+2%) |
+| Underside | 6.25 m | 5.78 m (−8%) | 6.05 m (−3%) |
+| Raven | 3.49 m | 3.48 m (0%) | 3.50 m (0%) |
+
+Mean range error falls from 15.8% to 1.4% and the worst from 54% to 3%. Mean separation from the reference at 0.5 s falls from 8.3 cm to 1.5 cm.
+
+Solver seconds per wall-clock second, same machine and run, whole flight and in the air:
+
+| Design | Sweeps alone | Direct solve | In the air: sweeps | In the air: direct |
+| --- | ---: | ---: | ---: | ---: |
+| Original dart | 5.1 | 5.5 | 5.7 | 6.0 |
+| The Basic | 2.5 | 2.4 | 3.2 | 2.4 |
+| Folded Dart | 0.98 | 0.99 | 1.35 | 1.12 |
+| The Stable | 1.5 | 1.6 | 1.5 | 1.6 |
+| Heavy Nose | 0.76 | 0.67 | 1.07 | 1.12 |
+| Hunting | 1.36 | 1.10 | 1.48 | 1.54 |
+| The Buzz | 0.46 | 0.42 | 0.47 | 0.43 |
+| V-Wing | 1.64 | 1.50 | 1.65 | 1.64 |
+| Underside | 1.32 | 1.26 | 1.45 | 1.55 |
+| Raven | 0.36 | 0.41 | 0.48 | 0.54 |
+
+In the air the cost is within about 10% either way, except The Basic (25% slower) and Folded Dart (17% slower). Whole-flight ratios are not like for like, because the flights are now different: planes fly further and land differently, and landing is the expensive regime. Hunting's lower figure is that, not a slower solver.
+
+Peak transverse penetration between layers over whole flights, landing included, sampled every 12 frames: at most 5.6 mm (The Basic), against 7.4 mm (Underside) with sweeps alone. It is lower on eight of the nine layered designs and higher on The Basic (5.6 mm against 2.7 mm).
+
+What did not work, measured: a single undamped Newton step per substep (unstable on several designs); accepting a partly converged solve (blows up on impact, because the unbalanced stiff forces become velocities); keeping a factorisation across substeps (the membrane's stiff directions turn with the sheet, so Newton needs four to six steps and a line search instead of one or two); and the same sweep budget as more substeps with fewer sweeps each (helps the layered designs, leaves the Original dart 50% short).
+
+Limits: after touchdown the solver is the sweep solver, so sliding and settling are unchanged and unvalidated. A flight's sheet is stiffer in the air than in a substep near the floor. Tissue was only spot-checked: the first five designs fly, at 0.9–1.1 times the previous speed. No browser run was made for this change.

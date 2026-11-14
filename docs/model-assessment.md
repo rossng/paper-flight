@@ -53,7 +53,7 @@ Static margins are 2–5% of body length on half the designs, so the small momen
 
 ## Does the reference need a better model?
 
-For the job it was built for, no. Changes to the real-time solver should be judged against the same equations solved accurately, otherwise solver error and model error cannot be told apart. The baseline table shows there is 16% mean and 54% worst-case solver error to recover before model error is the larger term.
+For the job it was built for, no. Changes to the real-time solver should be judged against the same equations solved accurately, otherwise solver error and model error cannot be told apart. When this was written the solver error was 16% mean and 54% worst case; the game's direct elastic solve has since brought it to 1.4% and 3%, so the model terms above are now the larger ones.
 
 For the question "does the game fly like paper", a better model would not settle it either. The honest next steps, in order of value:
 
