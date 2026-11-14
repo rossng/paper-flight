@@ -1,11 +1,14 @@
 import type { Face, PaperMesh } from '../geometry/dart';
-import { add, sub, scale, dot, cross, unit, clamp, type V3 } from './math';
+import { add, sub, scale, dot, cross, length, unit, clamp, type V3 } from './math';
 import type { AeroSettings, PanelLoad } from './aerodynamics';
 
 export interface SurfacePatch { face:number; weights:V3; fraction:number; station:number }
 export interface LiftingSurface {
   patches:SurfacePatch[]; boundaries:number[]; span:number;
   nose:number; tail:number; left:number; right:number; owners?:number[];
+  /** Every vertex coincident with each landmark at rest: folded layers give
+   * several copies, and averaging them keeps the frame mirror-symmetric. */
+  landmarks?:{nose:number[];tail:number[];left:number[];right:number[]};
   signs:number[]; shieldingDistance:number;
 }
 /** Clip in material/rest span coordinates, retaining a conservative barycentric map.
@@ -13,11 +16,16 @@ export interface LiftingSurface {
 export function buildLiftingSurface(mesh:PaperMesh, stations=12, shieldingDistance=.0005):LiftingSurface {
   if(!Number.isInteger(stations)||stations<2||stations>64)throw Error('Use 2–64 aerodynamic stations');
   const z=mesh.rest.map(p=>p[2]),lo=Math.min(...z),hi=Math.max(...z),span=hi-lo;
-  const boundaries=Array.from({length:stations+1},(_,i)=>lo+span*(1-Math.cos(Math.PI*i/stations))/2);
+  const middle=(lo+hi)/2,boundaries=Array.from({length:stations+1},(_,i)=>2*i===stations?middle:middle-span/2*Math.cos(Math.PI*i/stations));
   const patches:SurfacePatch[]=[],signs:number[]=[];
   mesh.faces.forEach((face,fi)=>{
     const p=face.map(i=>mesh.rest[i]),normal=cross(sub(p[1],p[0]),sub(p[2],p[0]));signs.push(normal[1]<0?-1:1);
     const coord=(w:V3)=>w.reduce((s,v,i)=>s+v*p[i][2],0);
+    // A face lying in a station boundary plane (the keel, when the station
+    // count is even) belongs equally to both neighbours. Clipping would hand
+    // all of it to whichever side rounding favours and skew the span loading.
+    const zs=p.map(q=>q[2]),edge=boundaries.findIndex((b,k)=>k>0&&k<stations&&zs.every(z=>Math.abs(z-b)<=1e-9*span));
+    if(edge>0){for(const station of [edge-1,edge])patches.push({face:fi,station,fraction:.5,weights:[1/3,1/3,1/3]});return;}
     const clip=(poly:V3[],limit:number,sign:number)=>{
       const out:V3[]=[];
       for(let i=0;i<poly.length;i++){
@@ -28,15 +36,37 @@ export function buildLiftingSurface(mesh:PaperMesh, stations=12, shieldingDistan
       return out;
     };
     for(let station=0;station<stations;station++){
-      const polygon=clip(clip([[1,0,0],[0,1,0],[0,0,1]],boundaries[station],1),boundaries[station+1],-1);
-      for(let k=1;k+1<polygon.length;k++){
-        const [a,b,c]=[polygon[0],polygon[k],polygon[k+1]],ab=sub(b,a),ac=sub(c,a);
+      const polygon=simplify(clip(clip([[1,0,0],[0,1,0],[0,0,1]],boundaries[station],1),boundaries[station+1],-1));
+      // Fan from a canonical vertex, not polygon[0]: the first vertex depends on
+      // face winding, so mirror-image faces would otherwise place patch centres
+      // (and point-sampled exposure) differently. The vertex with the smallest
+      // rest (x, y, |z|) is the same point on both mirror images.
+      const key=(w:V3)=>[0,1,2].map(d=>{const at=w[0]*p[0][d]+w[1]*p[1][d]+w[2]*p[2][d];return Math.round(1e9*(d===2?Math.abs(at):at));});
+      let first=0;
+      for(let k=1;k<polygon.length;k++){const a=key(polygon[k]),b=key(polygon[first]);if(a[0]<b[0]||(a[0]===b[0]&&(a[1]<b[1]||(a[1]===b[1]&&a[2]<b[2]))))first=k;}
+      const n=polygon.length,triangles:V3[][]=[];
+      for(let k=1;k+1<n;k++)triangles.push([polygon[first],polygon[(first+k)%n],polygon[(first+k+1)%n]]);
+      for(const [a,b,c] of triangles){
+        const ab=sub(b,a),ac=sub(c,a);
         const fraction=Math.abs(ab[1]*ac[2]-ab[2]*ac[1]);
         if(fraction>1e-10)patches.push({face:fi,station,fraction,weights:scale(add(add(a,b),c),1/3)});
       }
     }
   });
-  return {patches,boundaries,span,nose:mesh.nose,tail:mesh.tail,left:mesh.leftRoot,right:mesh.rightRoot,owners:mesh.faceOwners,signs,shieldingDistance};
+  const copies=(i:number)=>mesh.rest.flatMap((p,j)=>length(sub(p,mesh.rest[i]))<=1e-9*Math.max(span,1e-3)?[j]:[]);
+  const landmarks={nose:copies(mesh.nose),tail:copies(mesh.tail),left:copies(mesh.leftRoot),right:copies(mesh.rightRoot)};
+  return {patches,boundaries,span,nose:mesh.nose,tail:mesh.tail,left:mesh.leftRoot,right:mesh.rightRoot,landmarks,owners:mesh.faceOwners,signs,shieldingDistance};
+}
+/** Drop duplicate and collinear clip vertices (in barycentric space), which
+ * otherwise appear on one side of a mirror pair but not the other. */
+function simplify(polygon:V3[]):V3[] {
+  const area=(a:V3,b:V3,c:V3)=>{const ab=sub(b,a),ac=sub(c,a);return Math.abs(ab[1]*ac[2]-ab[2]*ac[1]);};
+  const out=[...polygon];
+  for(let i=0;out.length>=3&&i<out.length;){
+    const prev=out[(i+out.length-1)%out.length],next=out[(i+1)%out.length];
+    if(area(prev,out[i],next)<=1e-12){out.splice(i,1);i=0;}else i++;
+  }
+  return out.length>=3?out:[];
 }
 const smooth=(lo:number,hi:number,x:number)=>{const t=clamp((x-lo)/(hi-lo),0,1);return t*t*(3-2*t);};
 
@@ -121,10 +151,11 @@ function exposureQuery(p:V3[],faces:Face[],surface:LiftingSurface) {
 let patchScratch=new Float64Array(0),stripScratch=new Float64Array(0),normalScratch=new Float64Array(0);
 export function liftingSurfaceLoads(positions:V3[],velocities:V3[],faces:Face[],settings:AeroSettings,out:V3[]):PanelLoad[] {
   const surface=settings.surface!,n=surface.boundaries.length-1,patches=surface.patches;
-  const forward=unit(sub(positions[surface.nose],positions[surface.tail]));
-  const spanVector=sub(positions[surface.right],positions[surface.left]);
+  const at=(ids:number[]|undefined,fallback:number):V3=>{if(!ids||ids.length<2)return positions[fallback];const c:V3=[0,0,0];for(const i of ids)for(let d=0;d<3;d++)c[d]+=positions[i][d]/ids.length;return c;};
+  const nose=at(surface.landmarks?.nose,surface.nose),tail=at(surface.landmarks?.tail,surface.tail);
+  const forward=unit(sub(nose,tail));
+  const spanVector=sub(at(surface.landmarks?.right,surface.right),at(surface.landmarks?.left,surface.left));
   const spanAxis=unit(sub(spanVector,scale(forward,dot(spanVector,forward))));
-  const tail=positions[surface.tail];
   let low=Infinity,high=-Infinity;
   for(const p of positions){const c=(p[0]-tail[0])*spanAxis[0]+(p[1]-tail[1])*spanAxis[1]+(p[2]-tail[2])*spanAxis[2];if(c<low)low=c;if(c>high)high=c;}
   const spanScale=Math.max(.1,(high-low)/surface.span);

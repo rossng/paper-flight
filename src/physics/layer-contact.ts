@@ -1,3 +1,4 @@
+import { idKey, pairedSweep, PairPlan } from './symmetry';
 import type { Face, PaperMesh } from '../geometry/dart';
 import { sub, dot, cross, length, scale, type V3 } from './math';
 
@@ -45,8 +46,17 @@ export class LayerContactSolver {
   // Per contact: weights, normal, old relative position, tangent impulse, normal impulse.
   private data=new Float64Array(64*13);
   // Unloaded contacts last seen clear of their face; rechecked every COLD_SWEEPS sweeps.
-  private cold=new Uint8Array(64);
-  constructor(readonly candidates:ContactCandidate[]){
+  private cold=new Float64Array(64);
+  // Sweep order: each contact beside its mirror image on a symmetric sheet.
+  private plan=new PairPlan();
+  // Only the friction impulse and normal multiplier (data 9..12) change while solving.
+  private get state(){return [{data:this.data,stride:13,from:9,length:4},{data:this.cold,stride:1,combine:'min' as const}];}
+  // Each candidate's mirror-image candidate (−1 if none), and scratch for pairing.
+  private candidateMirror?:Int32Array; private contactAt:Int32Array;
+  private scratchIds=new Int32Array(0); private scratchData=new Float64Array(0); private scratchCold=new Float64Array(0); private scratchCandidate=new Int32Array(0);
+  // Side choices proposed during one detection pass, published at its end.
+  private proposedSide:Float64Array; private proposedWeight:Float64Array;
+  constructor(readonly candidates:ContactCandidate[],private mirror?:Int32Array){
     const count=candidates.length,faceIds=new Map<Face,number>(),sideIds=new Map<object,number>(),faces:number[]=[];
     this.vertex=new Int32Array(count);this.faceIndex=new Int32Array(count);this.orientation=new Float64Array(count);
     this.ambiguous=new Uint8Array(count);this.sideIndex=new Int32Array(count);this.sign=new Float64Array(count);this.chosen=new Uint8Array(count);this.near=new Int32Array(count);
@@ -57,6 +67,13 @@ export class LayerContactSolver {
       this.vertex[i]=c.vertex;this.faceIndex[i]=face;this.orientation[i]=c.orientation??NaN;this.ambiguous[i]=c.ambiguous?1:0;this.sideIndex[i]=side;
     });
     this.faces=Int32Array.from(faces);this.side=new Float64Array(this.sideStates.length);
+    this.proposedSide=new Float64Array(this.sideStates.length);this.proposedWeight=new Float64Array(this.sideStates.length);
+    this.contactAt=new Int32Array(count).fill(-1);
+    if(mirror){
+      const name=(c:ContactCandidate,map:(v:number)=>number)=>`${map(c.vertex)}|${idKey(c.face.map(map))}`;
+      const index=new Map(candidates.map((c,i)=>[name(c,v=>v),i]));
+      this.candidateMirror=Int32Array.from(candidates,c=>index.get(name(c,v=>mirror[v]))??-1);
+    }
     this.geometry=new Float64Array(faceIds.size*22);this.valid=new Uint8Array(faceIds.size);
     this.load();
   }
@@ -91,6 +108,11 @@ export class LayerContactSolver {
     }
     const vertex=this.vertex,faceIndex=this.faceIndex,sign=this.sign,chosen=this.chosen,side=this.side,sideIndex=this.sideIndex,orientation=this.orientation,ambiguous=this.ambiguous;
     this.count=0;
+    const proposedSide=this.proposedSide,proposedWeight=this.proposedWeight;proposedWeight.fill(0);
+    // Shared side choices are published after the pass, the clearest opening
+    // winning. Writing them mid-loop let candidate order decide which
+    // state-mates saw a choice this substep, breaking mirror symmetry.
+    const propose=(state:number,choice:number,weight:number)=>{if(state>=0&&weight>proposedWeight[state]){proposedWeight[state]=weight;proposedSide[state]=choice;}};
     // A full pass visits every candidate and records those within reach of
     // their face. Later substeps of the same frame revisit only that list.
     const near=this.near,total=full?vertex.length:this.nearCount;
@@ -113,8 +135,7 @@ export class LayerContactSolver {
       // Follow the actual previous side, including large rotations and recontact.
       // A rest ordering must never become a long-range attractive constraint.
       if(ambiguous[i]&&Math.abs(oldGap)>1e-8){
-        sign[i]=Math.sign(oldGap);chosen[i]=1;
-        if(state>=0)side[state]=sign[i]*orientation[i];
+        sign[i]=Math.sign(oldGap);chosen[i]=1;propose(state,sign[i]*orientation[i],Math.abs(oldGap));
       }
       if(chosen[i]&&rawGap*sign[i]>NEAR&&!full)continue;
       const dab=px*abx+py*aby+pz*abz,dac=px*acx+py*acy+pz*acz;
@@ -128,8 +149,7 @@ export class LayerContactSolver {
         if(Math.abs(rawGap)<1e-8)continue;
         // Zero-thickness recipes have no ordered sides. The first opening selects
         // a side locally, rather than imposing incompatible ordering at shared seams.
-        sign[i]=Math.sign(rawGap);chosen[i]=1;
-        if(state>=0)side[state]=sign[i]*orientation[i];
+        sign[i]=Math.sign(rawGap);chosen[i]=1;propose(state,sign[i]*orientation[i],Math.abs(rawGap));
       }
       const s=sign[i];
       if(rawGap*s>NEAR)continue;
@@ -141,16 +161,42 @@ export class LayerContactSolver {
       data[d+6]=old[k]-w0*old[a]-u*old[b]-v*old[c];data[d+7]=old[k+1]-w0*old[a+1]-u*old[b+1]-v*old[c+1];data[d+8]=old[k+2]-w0*old[a+2]-u*old[b+2]-v*old[c+2];
       data[d+9]=0;data[d+10]=0;data[d+11]=0;data[d+12]=0;this.cold[n]=0;
     }
+    for(let state=0;state<side.length;state++)if(proposedWeight[state]>0)side[state]=proposedSide[state];
+    this.arrange();
+  }
+  /** Reorder this substep's contacts so each sits beside its mirror image. */
+  private arrange(){
+    const count=this.count,partners=this.candidateMirror;
+    if(!partners||count<2){this.plan.plain(count);return;}
+    const at=this.contactAt,candidate=this.contactCandidate;
+    for(let n=0;n<count;n++)at[candidate[n]]=n;
+    this.plan.pair(count,n=>{const m=partners[candidate[n]];return m<0?-1:at[m];},this.ids,4);
+    for(let n=0;n<count;n++)at[candidate[n]]=-1;
+    const order=this.plan.order;
+    if(this.scratchIds.length<4*count){this.scratchIds=new Int32Array(this.ids.length);this.scratchData=new Float64Array(this.data.length);this.scratchCold=new Float64Array(this.cold.length);this.scratchCandidate=new Int32Array(this.contactCandidate.length);}
+    const ids=this.scratchIds,data=this.scratchData,cold=this.scratchCold,cand=this.scratchCandidate;
+    ids.set(this.ids.subarray(0,4*count));data.set(this.data.subarray(0,13*count));cold.set(this.cold.subarray(0,count));cand.set(candidate.subarray(0,count));
+    for(let k=0;k<count;k++){
+      const c=order[k];candidate[k]=cand[c];this.cold[k]=cold[c];
+      for(let q=0;q<4;q++)this.ids[4*k+q]=ids[4*c+q];
+      for(let q=0;q<13;q++)this.data[13*k+q]=data[13*c+q];
+    }
   }
   private grow(){
-    const size=this.contactCandidate.length*2,candidate=new Int32Array(size),ids=new Int32Array(size*4),data=new Float64Array(size*13),cold=new Uint8Array(size);
+    const size=this.contactCandidate.length*2,candidate=new Int32Array(size),ids=new Int32Array(size*4),data=new Float64Array(size*13),cold=new Float64Array(size);
     candidate.set(this.contactCandidate);ids.set(this.ids);data.set(this.data);cold.set(this.cold);this.contactCandidate=candidate;this.ids=ids;this.data=data;this.cold=cold;
   }
   /** Unilateral normal projection plus a Coulomb disk |lambda_t| <= mu lambda_n.
    * Internal equal/opposite barycentric corrections preserve the mass centre. */
   solve(x:Float64Array,w:ArrayLike<number>,friction:number,sweep=0){
-    const ids=this.ids,data=this.data,cold=this.cold,recheck=sweep%COLD_SWEEPS===0;
-    for(let n=0;n<this.count;n++){
+    const recheck=sweep%COLD_SWEEPS===0;
+    if(this.plan.count!==this.count)this.plan.plain(this.count);
+    pairedSweep(this.plan,true,x,(start,end,forward)=>this.solveRange(x,w,friction,recheck,start,end,forward),this.state);
+  }
+  private solveRange(x:Float64Array,w:ArrayLike<number>,friction:number,recheck:boolean,start:number,end:number,forward:boolean){
+    const ids=this.ids,data=this.data,cold=this.cold;
+    for(let k=start;k<end;k++){
+      const n=forward?k:end-1-k+start;
       if(cold[n]&&!recheck)continue;
       const d=13*n,iv=ids[4*n],i0=ids[4*n+1],i1=ids[4*n+2],i2=ids[4*n+3],pv=3*iv,a=3*i0,b=3*i1,c=3*i2;
       const k0=data[d],k1=data[d+1],k2=data[d+2],nx=data[d+3],ny=data[d+4],nz=data[d+5];

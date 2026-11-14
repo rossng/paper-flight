@@ -9,6 +9,7 @@ import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynam
 import { airVelocity } from './weather';
 import { materialSettings, type MaterialId } from './materials';
 import { RELEASE_DURATION_MS, springVelocityDelta } from './launcher';
+import { arrangeInPlace, idKey, mirrorMap, pairedSweep, type PairPlan } from './symmetry';
 import { dampEdges, edgeBatch, edgeStrainsWithin, hingeBatch, limitEdgeStrains, setHingeOffset, solveHinges, solveLayerTie, type EdgeBatch, type HingeBatch } from './constraints';
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
 // Work-saving schedule. Each item trades exactness for time where the
@@ -49,15 +50,23 @@ export class Simulation {
   private x:Float64Array; private xOld:Float64Array; private v:Float64Array; private w:Float64Array; private air:Float64Array;
   private exposure={values:new Float64Array(0),valid:false}; private frame=0;
   private hingeBatch:HingeBatch; private edgeBatch:EdgeBatch; private membraneBatch:MembraneBatch;
+  /** Mirror vertex map of a left/right symmetric sheet. Constraint sweeps keep
+   * each constraint next to its mirror image, so Gauss-Seidel order cannot
+   * favour one wing; asymmetric sheets keep their original order. */
+  mirror?:Int32Array; private plans:{membranes:PairPlan;hinges:PairPlan;edges:PairPlan;ties:PairPlan};
   constructor(parameters:Partial<Parameters>={},mesh?:PaperMesh) {
     this.parameters={...DEFAULTS,...materialSettings(parameters.material??'paper',parameters.paperWeight??80),...parameters,wind:[...(parameters.wind??DEFAULTS.wind)]};
     this.mesh=mesh?structuredClone(mesh):createDart(this.parameters.dihedral,8,5,this.parameters.span,this.parameters.size,0.005*this.parameters.size**2*this.parameters.paperWeight/80);this.invMass=this.mesh.masses.map(m=>1/m);
     this.tributaryArea=this.mesh.rest.map(()=>0);
     for(const [a,b,c] of this.mesh.faces){const area=length(cross(sub(this.mesh.rest[b],this.mesh.rest[a]),sub(this.mesh.rest[c],this.mesh.rest[a])))/6;for(const i of [a,b,c])this.tributaryArea[i]+=area;}
     this.membranes=buildMembranes(this.mesh);
+    const mirror=this.mirror=mirrorMap(this.mesh);
+    const ties=this.mesh.layerTies??[];
+    this.plans={membranes:arrangeInPlace(this.membranes,t=>t.face,mirror),hinges:arrangeInPlace(this.mesh.hinges,h=>h.ids,mirror),edges:arrangeInPlace(this.mesh.edges,e=>[e.a,e.b],mirror),
+      ties:arrangeInPlace(ties,t=>[t.vertex,...t.face],mirror,(t,map)=>`${map(t.vertex)}|${idKey(t.face.map(map))}`)};
     this.material=sheetMaterial(this.parameters.material,this.parameters.paperWeight);prepareMaterialGeometry(this.mesh);
     this.surface=buildLiftingSurface(this.mesh,this.parameters.aeroStations,Math.max(.0002,2*this.material.thickness));
-    this.layerContact=new LayerContactSolver(buildContactCandidates(this.mesh));this.selfContact=new SelfContactSolver(this.mesh);this.groundContact=new GroundContactSolver(this.mesh.rest.length);
+    this.layerContact=new LayerContactSolver(buildContactCandidates(this.mesh),mirror);this.selfContact=new SelfContactSolver(this.mesh,mirror);this.groundContact=new GroundContactSolver(this.mesh.rest.length);
     const size=this.mesh.rest.length*3;
     this.x=new Float64Array(size);this.xOld=new Float64Array(size);this.v=new Float64Array(size);this.air=new Float64Array(size);this.w=new Float64Array(this.mesh.rest.length);
     this.hingeBatch=hingeBatch(this.mesh.hinges);this.edgeBatch=edgeBatch(this.mesh.edges);this.membraneBatch=membraneBatch(this.membranes);
@@ -149,6 +158,11 @@ export class Simulation {
     const count=this.positions.length,x=this.x,old=this.xOld,v=this.v,w=this.w,air=this.air,frame=this.frame++;
     const hinges=this.hingeBatch,edges=this.edgeBatch,membranes=this.membraneBatch,layers=this.layerContact,self=this.selfContact,ground=this.groundContact;
     const contact=this.parameters.layerModel==='contact';
+    const plans=this.plans,membraneState=[{data:membranes.lambda,stride:3}],hingeState=[{data:hinges.lambda,stride:1}];
+    const solveMembraneRange=(start:number,end:number,forward:boolean)=>solveMembranes(x,w,membranes,forward,start,end);
+    const solveHingeRange=(start:number,end:number,forward:boolean)=>solveHinges(x,w,hinges,forward,start,end);
+    const ties=this.mesh.layerTies??[],solveTieRange=(start:number,end:number,forward:boolean)=>{for(let k=start;k<end;k++)solveLayerTie(x,w,ties[forward?k:end-1-k+start]);};
+    const limitEdgeRange=(start:number,end:number,forward:boolean)=>limitEdgeStrains(x,w,edges,forward,.02,start,end);
     // Constraint sweeps converge faster per sweep at a smaller timestep. When
     // floor contact, the launch stroke or air loads raise the substep count
     // above the sheet's usual one, share that frame's sweeps between them
@@ -207,10 +221,10 @@ export class Simulation {
       for(let iteration=0;iteration<iterations;iteration++){
         // Alternating sweep direction reduces directional Gauss-Seidel bias.
         const forward=iteration%2===0;
-        solveMembranes(x,w,membranes,forward);
-        solveHinges(x,w,hinges,forward);
-        if(this.parameters.layerModel==='bonded')for(const tie of this.mesh.layerTies??[])solveLayerTie(x,w,tie);
-        limitEdgeStrains(x,w,edges,forward);
+        pairedSweep(plans.membranes,forward,x,solveMembraneRange,membraneState);
+        pairedSweep(plans.hinges,forward,x,solveHingeRange,hingeState);
+        if(this.parameters.layerModel==='bonded')pairedSweep(plans.ties,true,x,solveTieRange);
+        pairedSweep(plans.edges,forward,x,limitEdgeRange);
         layers.solve(x,w,this.material.friction,iteration);
         if(contact){
           // Include structural projection in the sweep, not only free motion.
@@ -225,7 +239,7 @@ export class Simulation {
       for(let pass=0;pass<(groundCleanup?32:contact?4:0);pass++){
         // A pinned nose can concentrate compression into a few very short
         // edges. Reconcile the no-tearing envelope with both contact systems.
-        if(groundCleanup)limitEdgeStrains(x,w,edges,pass%2===0);
+        if(groundCleanup)pairedSweep(plans.edges,pass%2===0,x,limitEdgeRange);
         if(contact)self.solveFlat(x,w,pass%2===0);
         ground.solveFlat(x,old,w,this.groundHeight,this.parameters);
         // Most contacts converge in eight sweeps. Small triangles in dense
@@ -233,7 +247,8 @@ export class Simulation {
         if(groundCleanup&&pass>=7&&(pass+1)%4===0&&edgeStrainsWithin(x,edges,.05))break;
       }
       for(let k=0;k<3*count;k++)v[k]=(x[k]-old[k])/dt;
-      dampEdges(x,v,w,edges,1-Math.exp(-18*dt));
+      const damping=1-Math.exp(-18*dt);
+      pairedSweep(plans.edges,true,v,(start,end,forward)=>dampEdges(x,v,w,edges,damping,start,end,forward));
       const supported=ground.solveVelocityFlat(x,v,this.groundHeight,this.parameters);
       let finite=true;
       for(let k=0;k<3*count;k++)if(!(Math.abs(x[k])<=1000)){finite=false;break;}

@@ -42,10 +42,10 @@ export function edgeBatch(edges:Edge[]):EdgeBatch {
 }
 /** One XPBD sweep over every hinge: same signed gradients as hingeGradients,
  * without temporary vectors. `alpha` is compliance/dt^2 per hinge. */
-export function solveHinges(x:Float64Array,w:Weights,batch:HingeBatch,forward:boolean) {
-  const {ids,targetSin,targetCos,alpha,lambda}=batch,count=lambda.length;
-  for(let k=0;k<count;k++){
-    const j=forward?k:count-1-k,i0=ids[4*j],i1=ids[4*j+1],i2=ids[4*j+2],i3=ids[4*j+3],a=3*i0,b=3*i1,c=3*i2,d=3*i3;
+export function solveHinges(x:Float64Array,w:Weights,batch:HingeBatch,forward:boolean,start=0,end=Infinity) {
+  const {ids,targetSin,targetCos,alpha,lambda}=batch,count=Math.min(end,lambda.length);
+  for(let k=start;k<count;k++){
+    const j=forward?k:count-1-k+start,i0=ids[4*j],i1=ids[4*j+1],i2=ids[4*j+2],i3=ids[4*j+3],a=3*i0,b=3*i1,c=3*i2,d=3*i3;
     const ax=x[a],ay=x[a+1],az=x[a+2],bx=x[b],by=x[b+1],bz=x[b+2],cx=x[c],cy=x[c+1],cz=x[c+2],dx=x[d],dy=x[d+1],dz=x[d+2];
     const ex=dx-cx,ey=dy-cy,ez=dz-cz,el=Math.sqrt(ex*ex+ey*ey+ez*ez);
     const ux=cx-ax,uy=cy-ay,uz=cz-az,vx=dx-ax,vy=dy-ay,vz=dz-az;
@@ -79,9 +79,10 @@ export function solveHinges(x:Float64Array,w:Weights,batch:HingeBatch,forward:bo
   }
 }
 /** Pairwise axial damping dissipates internal strain rates, preserving linear/angular momentum. */
-export function dampEdges(x:Float64Array,v:Float64Array,w:Weights,edges:EdgeBatch,amount:number) {
-  const ids=edges.ids;
-  for(let j=0;j<edges.rest.length;j++){
+export function dampEdges(x:Float64Array,v:Float64Array,w:Weights,edges:EdgeBatch,amount:number,start=0,end=Infinity,forward=true) {
+  const ids=edges.ids,count=Math.min(end,edges.rest.length);
+  for(let k=start;k<count;k++){
+    const j=forward?k:count-1-k+start;
     const ia=ids[2*j],ib=ids[2*j+1],a=3*ia,b=3*ib;
     const nx=x[b]-x[a],ny=x[b+1]-x[a+1],nz=x[b+2]-x[a+2],l=Math.sqrt(nx*nx+ny*ny+nz*nz);if(l<1e-12)continue;
     const dx=nx/l,dy=ny/l,dz=nz/l,rate=(v[b]-v[a])*dx+(v[b+1]-v[a+1])*dy+(v[b+2]-v[a+2])*dz;
@@ -99,10 +100,10 @@ export function solveLayerTie(x:Float64Array,w:Weights,tie:import('../folding/fl
 /** Near-inextensible safety envelope for a game without tearing. This inequality
  * is inactive in the elastic range; it prevents under-resolved stiff modes from
  * turning a thin sheet into a rubber net. It is not an extra elastic modulus. */
-export function limitEdgeStrains(x:Float64Array,w:Weights,edges:EdgeBatch,forward:boolean,limit=.02){
- const ids=edges.ids,rest=edges.rest,count=rest.length;
- for(let k=0;k<count;k++){
-  const j=forward?k:count-1-k,ia=ids[2*j],ib=ids[2*j+1],a=3*ia,b=3*ib;
+export function limitEdgeStrains(x:Float64Array,w:Weights,edges:EdgeBatch,forward:boolean,limit=.02,start=0,end=Infinity){
+ const ids=edges.ids,rest=edges.rest,count=Math.min(end,rest.length);
+ for(let k=start;k<count;k++){
+  const j=forward?k:count-1-k+start,ia=ids[2*j],ib=ids[2*j+1],a=3*ia,b=3*ib;
   const dx=x[a]-x[b],dy=x[a+1]-x[b+1],dz=x[a+2]-x[b+2],l=Math.sqrt(dx*dx+dy*dy+dz*dz);if(l<1e-12)continue;
   const target=Math.max(rest[j]*(1-limit),Math.min(rest[j]*(1+limit),l));
   // An inactive inequality has exactly zero impulse; avoid six position writes

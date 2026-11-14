@@ -1,3 +1,4 @@
+import { idKey, pairedSweep, PairPlan } from './symmetry';
 import type { PaperMesh } from '../geometry/dart';
 import type { V3 } from './math';
 
@@ -133,7 +134,13 @@ export class SelfContactSolver {
   // Active contacts in detection order: four vertex ids, pair key, side, kind.
   /** Active contacts this substep. */
   count=0;
-  private ids=new Int32Array(256); private keys=new Int32Array(64); private signs=new Int8Array(64); private vertexFace=new Uint8Array(64); private carried=new Uint8Array(64); private idle=new Uint8Array(64);
+  private ids=new Int32Array(256); private keys=new Int32Array(64); private signs=new Int8Array(64); private vertexFace=new Uint8Array(64); private carried=new Uint8Array(64); private idle=new Float64Array(64);
+  // Sweep order: each contact beside its mirror image on a symmetric sheet;
+  // rebuilt whenever contacts were added since the last sweep.
+  private plan=new PairPlan(); private arranged=false;
+  // Mirror image of each face and edge (by index), and pair key → active slot.
+  private faceMirror?:Int32Array; private edgeMirror?:Int32Array; private slot:Int32Array;
+  private scratch={ids:new Int32Array(0),keys:new Int32Array(0),signs:new Int8Array(0),kinds:new Uint8Array(0),carried:new Uint8Array(0),idle:new Float64Array(0)};
   private previousCount=0; private previousKeys=new Int32Array(64);
   private oldFlat:Float64Array; private newFlat:Float64Array; private ownOld:Float64Array; private ownNew:Float64Array;
   private low:Float64Array; private high:Float64Array;
@@ -146,7 +153,7 @@ export class SelfContactSolver {
   private vertexFacePairs=new Int32Array(2048); private vertexFacePairCount=0;
   private edgePairs=new Int32Array(2048); private edgePairCount=0;
   stats={narrowTests:0,vertexFace:0,edgeEdge:0};
-  constructor(mesh:PaperMesh){
+  constructor(mesh:PaperMesh,private mirror?:Int32Array){
     // Compact material adjacency: hot broad-phase visitors test bits instead
     // of hashing vertex IDs. One bit per pair, with the same one-ring exclusion.
     const count=mesh.rest.length,words=this.words=Math.ceil(count/32);
@@ -161,7 +168,13 @@ export class SelfContactSolver {
     this.faceTree=tree(mesh.faces);this.edgeTree=tree(edges);
     this.faces=Int32Array.from(mesh.faces.flat());this.edges=Int32Array.from(edges.flat());
     const pairs=count*mesh.faces.length+edges.length*edges.length;
-    this.previousSign=new Int8Array(pairs);this.activeFlag=new Uint8Array(pairs);
+    this.previousSign=new Int8Array(pairs);this.activeFlag=new Uint8Array(pairs);this.slot=new Int32Array(mirror?pairs:0).fill(-1);
+    if(mirror){
+      const faceIndex=new Map(mesh.faces.map((f,i)=>[idKey(f),i])),edgeIndex=new Map(edges.map((e,i)=>[idKey(e),i]));
+      this.faceMirror=Int32Array.from(mesh.faces,f=>faceIndex.get(idKey(f.map(v=>mirror[v])))??-1);
+      this.edgeMirror=Int32Array.from(edges,e=>edgeIndex.get(idKey(e.map(v=>mirror[v])))??-1);
+      if(this.faceMirror.includes(-1)||this.edgeMirror.includes(-1))this.faceMirror=this.edgeMirror=undefined;
+    }
     this.oldFlat=this.ownOld=new Float64Array(count*3);this.newFlat=this.ownNew=new Float64Array(count*3);
     this.low=new Float64Array(count*3);this.high=new Float64Array(count*3);this.reference=new Float64Array(count*3);
     this.faceBoxes=new Float64Array(mesh.faces.length*6);this.edgeBoxes=new Float64Array(edges.length*6);
@@ -209,11 +222,11 @@ export class SelfContactSolver {
   private add(i0:number,i1:number,i2:number,i3:number,vf:boolean,sign:number,key:number,carried=false){
     if(this.count===this.keys.length){
       const size=this.count*2,ids=new Int32Array(size*4),keys=new Int32Array(size),signs=new Int8Array(size),kinds=new Uint8Array(size);
-      const carried=new Uint8Array(size);carried.set(this.carried);this.carried=carried;const idle=new Uint8Array(size);idle.set(this.idle);this.idle=idle;
+      const carried=new Uint8Array(size);carried.set(this.carried);this.carried=carried;const idle=new Float64Array(size);idle.set(this.idle);this.idle=idle;
       ids.set(this.ids);keys.set(this.keys);signs.set(this.signs);kinds.set(this.vertexFace);this.ids=ids;this.keys=keys;this.signs=signs;this.vertexFace=kinds;
     }
     const n=this.count++;this.ids[4*n]=i0;this.ids[4*n+1]=i1;this.ids[4*n+2]=i2;this.ids[4*n+3]=i3;
-    this.keys[n]=key;this.signs[n]=sign;this.vertexFace[n]=vf?1:0;this.carried[n]=carried?1:0;this.idle[n]=0;this.activeFlag[key]=1;
+    this.keys[n]=key;this.signs[n]=sign;this.vertexFace[n]=vf?1:0;this.carried[n]=carried?1:0;this.idle[n]=0;this.activeFlag[key]=1;this.arranged=false;
     if(vf)this.stats.vertexFace++;else this.stats.edgeEdge++;
   }
   /** Projected impact coordinates at time t of the step lie inside both features. */
@@ -382,11 +395,37 @@ export class SelfContactSolver {
   /** One projection sweep. With a `sweep` index, separated contacts are
    * revisited every other sweep, and clearly separated ones every eighth. */
   solveFlat(x:Float64Array,w:ArrayLike<number>,forward=true,sweep=0){
-    const ids=this.ids,signs=this.signs,kinds=this.vertexFace,carried=this.carried,idle=this.idle,count=this.count;
+    if(!this.arranged||this.plan.count!==this.count)this.arrange();
+    const ids=this.ids,signs=this.signs,kinds=this.vertexFace,carried=this.carried,idle=this.idle;
     const skip=sweep%8===0?3:sweep%2===0?2:1;
+    pairedSweep(this.plan,forward,x,(start,end,ahead)=>{
+      for(let k=start;k<end;k++){
+        const j=ahead?k:end-1-k+start;if(idle[j]>=skip)continue;
+        idle[j]=project(x,w,ids[4*j],ids[4*j+1],ids[4*j+2],ids[4*j+3],kinds[j]===1,signs[j],carried[j]===1);
+      }
+    },[{data:idle,stride:1,combine:'min'}]);
+  }
+  /** Reorder active contacts so each sits beside its mirror image. */
+  private arrange(){
+    this.arranged=true;const count=this.count,faceMirror=this.faceMirror,edgeMirror=this.edgeMirror,mirror=this.mirror;
+    if(!mirror||!faceMirror||!edgeMirror||count<2){this.plan.plain(count);return;}
+    const keys=this.keys,slot=this.slot,faceCount=faceMirror.length,edgeCount=edgeMirror.length,vertexFaceKeys=mirror.length*faceCount;
+    // A contact's mirror image has the mirrored pair key.
+    const mirrorKey=(key:number)=>{
+      if(key<vertexFaceKeys){const fi=key%faceCount;return mirror[(key-fi)/faceCount]*faceCount+faceMirror[fi];}
+      const pair=key-vertexFaceKeys,j=pair%edgeCount,i=(pair-j)/edgeCount,a=edgeMirror[i],b=edgeMirror[j];
+      return vertexFaceKeys+Math.min(a,b)*edgeCount+Math.max(a,b);
+    };
+    for(let n=0;n<count;n++)slot[keys[n]]=n;
+    this.plan.pair(count,n=>slot[mirrorKey(keys[n])],this.ids,4);
+    for(let n=0;n<count;n++)slot[keys[n]]=-1;
+    const order=this.plan.order,s=this.scratch;
+    if(s.ids.length<4*count)this.scratch={ids:new Int32Array(this.ids.length),keys:new Int32Array(this.keys.length),signs:new Int8Array(this.keys.length),kinds:new Uint8Array(this.keys.length),carried:new Uint8Array(this.keys.length),idle:new Float64Array(this.keys.length)};
+    const t=this.scratch;
+    t.ids.set(this.ids.subarray(0,4*count));t.keys.set(keys.subarray(0,count));t.signs.set(this.signs.subarray(0,count));t.kinds.set(this.vertexFace.subarray(0,count));t.carried.set(this.carried.subarray(0,count));t.idle.set(this.idle.subarray(0,count));
     for(let k=0;k<count;k++){
-      const j=forward?k:count-1-k;if(idle[j]>=skip)continue;
-      idle[j]=project(x,w,ids[4*j],ids[4*j+1],ids[4*j+2],ids[4*j+3],kinds[j]===1,signs[j],carried[j]===1);
+      const c=order[k];for(let q=0;q<4;q++)this.ids[4*k+q]=t.ids[4*c+q];
+      keys[k]=t.keys[c];this.signs[k]=t.signs[c];this.vertexFace[k]=t.kinds[c];this.carried[k]=t.carried[c];this.idle[k]=t.idle[c];
     }
   }
   /** Per-vertex array form of solveFlat. */

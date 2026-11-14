@@ -8,12 +8,21 @@ export interface Membrane { face:Face; md:V3; cd:V3; area:number; lambda:V3 }
 export function buildMembranes(mesh:PaperMesh):Membrane[]{
  return mesh.faces.map(face=>{
   const [a,b,c]=face.map(i=>mesh.rest[i]),ab=sub(b,a),ac=sub(c,a),l=length(ab),x=dot(ac,scale(ab,1/l)),y=length(cross(ab,ac))/l;
+  // Shape-function gradients in the triangle plane, as 3D vectors.
+  const e1=scale(ab,1/l),e2=scale(sub(ac,scale(e1,x)),1/y);
   const gx:V3=[-1/l,1/l,0],gy:V3=[(x-l)/(l*y),-x/(l*y),1/y];
+  const gradient=[0,1,2].map(i=>[0,1,2].map(d=>gx[i]*e1[d]+gy[i]*e2[d]) as V3);
+  // Machine direction follows the material v gradient; cross direction is the
+  // in-plane perpendicular nearest the u gradient. Both depend only on the
+  // triangle and its material map, not on which edge is listed first (an
+  // edge-relative angle made mirror-image triangles disagree when the
+  // material map is not isometric).
   const uv=face.map(i=>mesh.materialUV?.[i]??[mesh.rest[i][2],mesh.rest[i][0]]);
-  const du=uv[1][0]-uv[0][0],dv=uv[1][1]-uv[0][1],ul=Math.hypot(du,dv);
-  const orientation=Math.sign(du*(uv[2][1]-uv[0][1])-dv*(uv[2][0]-uv[0][0]))||1;
-  const cos=ul>1e-12?dv/ul:1,sin=ul>1e-12?du/ul:0;
-  const md=gx.map((v,i)=>cos*v+orientation*sin*gy[i]) as V3,cd=gx.map((v,i)=>sin*v-orientation*cos*gy[i]) as V3;
+  const along=(k:number)=>gradient.reduce((sum,g,i)=>[sum[0]+g[0]*uv[i][k],sum[1]+g[1]*uv[i][k],sum[2]+g[2]*uv[i][k]] as V3,[0,0,0] as V3);
+  const gu=along(0),gv=along(1),vl=length(gv);
+  const mdAxis=vl>1e-12?scale(gv,1/vl):e1,cdRaw=sub(gu,scale(mdAxis,dot(gu,mdAxis))),cl=length(cdRaw);
+  const cdAxis=cl>1e-12?scale(cdRaw,1/cl):cross(scale(cross(ab,ac),1/(l*y)),mdAxis);
+  const md=gradient.map(g=>dot(g,mdAxis)) as V3,cd=gradient.map(g=>dot(g,cdAxis)) as V3;
   return {face,md,cd,area:l*y/2,lambda:[0,0,0]};
  });
 }
@@ -30,10 +39,10 @@ export function membraneBatch(triangles:Membrane[]):MembraneBatch {
  * strain, Gt A/2 times squared engineering shear. Poisson membrane coupling is
  * omitted; explicit shear prevents skinny triangles collapsing like bar nets.
  * One XPBD sweep over flat xyz coordinates; `alpha` is compliance/dt^2 per mode. */
-export function solveMembranes(x:Float64Array,w:ArrayLike<number>,batch:MembraneBatch,forward:boolean){
- const {faces,md,cd,alpha,lambda}=batch,count=faces.length/3;
- for(let k=0;k<count;k++){
-  const t=3*(forward?k:count-1-k),ia=faces[t],ib=faces[t+1],ic=faces[t+2],a=3*ia,b=3*ib,c=3*ic,wa=w[ia],wb=w[ib],wc=w[ic];
+export function solveMembranes(x:Float64Array,w:ArrayLike<number>,batch:MembraneBatch,forward:boolean,start=0,end=Infinity){
+ const {faces,md,cd,alpha,lambda}=batch,count=Math.min(end,faces.length/3);
+ for(let k=start;k<count;k++){
+  const t=3*(forward?k:count-1-k+start),ia=faces[t],ib=faces[t+1],ic=faces[t+2],a=3*ia,b=3*ib,c=3*ic,wa=w[ia],wb=w[ib],wc=w[ic];
   let ax=x[a],ay=x[a+1],az=x[a+2],bx=x[b],by=x[b+1],bz=x[b+2],cx=x[c],cy=x[c+1],cz=x[c+2];
   const m0=md[t],m1=md[t+1],m2=md[t+2],c0=cd[t],c1=cd[t+1],c2=cd[t+2];
   // Each normal mode needs only its own material derivative. Recompute it
