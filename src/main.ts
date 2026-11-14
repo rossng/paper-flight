@@ -14,7 +14,7 @@ import { readDesignSettings, readLaunchSettings } from './folding/settings';
 import { designThumbnail } from './folding/thumbnail';
 import { Viewport } from './rendering/viewport';
 import { materialThumbnail } from './rendering/material-thumbnail';
-import { challengeVerdict, readChallenge, shareText, shareUrl } from './share';
+import { challengeVerdict, readChallenge, shareText, shareUrl, type World } from './share';
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const icon='<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M28 4 4 13l10 5 5 10L28 4Z M14 18 28 4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 $('app').innerHTML=`
@@ -168,9 +168,9 @@ $('camera').onclick=()=>{if(viewport.reviewing){showFullPath();return;}if(mode==
 let pullX=0,pullY=0,dragging=false,startX=0,startY=0,aimPitch=readLaunchSettings(incoming).throwAngle,aimTrim=readLaunchSettings(incoming).trim,releasing=false;let slingPointer:number|null=null;
 function pullAmount(){return Math.hypot(pullX,pullY);}
 // Fun settings: planets, special air features and a cannon launcher.
-const worlds:Record<string,{gravity:number;density:number;label:string}>={earth:{gravity:9.81,density:1.225,label:''},moon:{gravity:1.62,density:0,label:'Moon'},mars:{gravity:3.71,density:.02,label:'Mars'}};
+const worlds:Record<World,{gravity:number;density:number;label:string}>={earth:{gravity:9.81,density:1.225,label:''},moon:{gravity:1.62,density:0,label:'Moon'},mars:{gravity:3.71,density:.02,label:'Mars'}};
 const windModeLabels:Record<WindMode,string>={none:'',thermal:'Thermal',tornado:'Tornado',fan:'Desk fan'};
-let world='earth',windMode:WindMode='none',cannon=false;
+let world:World=challenge.world??'earth',windMode:WindMode=challenge.windMode??'none',cannon=challenge.cannon??false;
 function releaseSpeed(){return launchSpeed(pullAmount())*(cannon?60/11:1);}
 function setPitch(value:number){if(simulation.status!=='ready'||releasing)return;aimPitch=((value+180)%360+360)%360-180;paintSling();}
 /** Trim is the plane's held angle of attack relative to the throw direction. */
@@ -242,7 +242,7 @@ $('weather-close').onclick=$('weather-done').onclick=()=> $<HTMLDialogElement>('
  document.querySelectorAll<HTMLButtonElement>('[data-breeze]').forEach(button=>button.onclick=()=>{breeze=Number(button.dataset.breeze);updateWeather();});
  document.querySelectorAll<HTMLButtonElement>('[data-wind-direction]').forEach(button=>button.onclick=()=>{windHeading=Number(button.dataset.windDirection);updateWeather();});
 $('weather-gusts').onchange=$('weather-turbulence').onchange=updateWeather;
-document.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(button=>button.onclick=()=>{world=button.dataset.world!;updateWeather();});
+document.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(button=>button.onclick=()=>{world=button.dataset.world as World;updateWeather();});
 document.querySelectorAll<HTMLButtonElement>('[data-wind-mode]').forEach(button=>button.onclick=()=>{windMode=button.dataset.windMode as WindMode;updateWeather();});
 document.querySelectorAll<HTMLButtonElement>('[data-cannon]').forEach(button=>button.onclick=()=>{cannon=button.dataset.cannon==='1';updateWeather();});
 function setInspector(open:boolean){$('review-inspector').hidden=!open;$('review-inspect').setAttribute('aria-expanded',String(open));}
@@ -306,7 +306,7 @@ function animate(now:number){const elapsed=(now-previous)/1000;previous=now;if(!
  }if(viewport.reviewing&&!$<HTMLDialogElement>('notes').open&&$('result').hidden){if(replayPlaying){reviewTime=Math.min(recording.duration,reviewTime+Math.min(elapsed,0.1));if(reviewTime>=recording.duration)replayPlaying=false;updateReview();}viewport.moveReview(Number(reviewKeys.has('w'))-Number(reviewKeys.has('s')),Number(reviewKeys.has('d'))-Number(reviewKeys.has('a')),Number(reviewKeys.has('e'))-Number(reviewKeys.has('q')),elapsed);}if(now-lastUI>100){updateUI();lastUI=now;}if(mode==='throw'&&simulation.status==='ready')paintSling();if(mode==='workbench')foldingView.render();else viewport.render();requestAnimationFrame(animate);}
 new ResizeObserver(()=>paintSling()).observe($('launch-overlay'));
 async function sharePlane(){
- const flight={design,parameters,throwAngle:aimPitch,trim:aimTrim,breeze,windHeading,gusts:parameters.gusts>0,turbulence:parameters.turbulence>0,...lastFlight};
+ const flight={design,parameters,throwAngle:aimPitch,trim:aimTrim,breeze,windHeading,gusts:parameters.gusts>0,turbulence:parameters.turbulence>0,world,windMode,cannon,...lastFlight};
  const url=shareUrl(flight,location.href),text=shareText(flight),status=$('share-status');
  // Touch devices get the native share sheet; desktops copy the link straight to the clipboard.
  if(navigator.share&&matchMedia('(pointer: coarse)').matches){

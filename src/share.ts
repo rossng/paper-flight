@@ -1,5 +1,6 @@
 import type {Parameters} from './physics/simulation';
 import {findDesign} from './folding/library';
+import type {WindMode} from './physics/weather';
 
 /** Everything needed to fold and launch the same plane, plus the score to beat. */
 export interface SharedFlight {
@@ -8,11 +9,15 @@ export interface SharedFlight {
  /** Launcher dial angle and trim (nose relative to throw), degrees. */
  throwAngle:number; trim:number;
  breeze:number; windHeading:number; gusts:boolean; turbulence:boolean;
+ /** Fun settings; omitted when they are the everyday defaults (Earth, plain air, hand throw). */
+ world?:World; windMode?:WindMode; cannon?:boolean;
  /** Distance and air time of the flight being shared, if any. */
  distance?:number; time?:number;
 }
 /** Weather and the challenge distance; the plane and throw are read by `readDesignSettings`/`readLaunchSettings`. */
-export interface Challenge { breeze:number; windHeading:number; gusts:boolean; turbulence:boolean; distance?:number; time?:number }
+export interface Challenge { breeze:number; windHeading:number; gusts:boolean; turbulence:boolean; world?:World; windMode?:WindMode; cannon?:boolean; distance?:number; time?:number }
+export type World='earth'|'moon'|'mars';
+const WORLDS:World[]=['moon','mars'],WIND_MODES:WindMode[]=['thermal','tornado','fan'];
 
 const BREEZES=[0,1.5,3],HEADINGS=[0,90,180,270];
 const round=(value:number,places:number)=>Number(value.toFixed(places));
@@ -36,6 +41,9 @@ export function encodeShare(flight:SharedFlight):URLSearchParams {
  if(flight.breeze){query.set('breeze',String(flight.breeze));query.set('wind',String(flight.windHeading));}
  if(flight.gusts)query.set('gusts','1');
  if(flight.turbulence)query.set('swirl','1');
+ if(flight.world&&flight.world!=='earth')query.set('world',flight.world);
+ if(flight.windMode&&flight.windMode!=='none')query.set('air',flight.windMode);
+ if(flight.cannon)query.set('cannon','1');
  if(flight.distance!==undefined)query.set('dist',String(round(flight.distance,1)));
  if(flight.time!==undefined)query.set('time',String(round(flight.time,1)));
  return query;
@@ -49,6 +57,10 @@ export function shareUrl(flight:SharedFlight,base:string):string {
 export function readChallenge(query:URLSearchParams):Challenge {
  const breeze=BREEZES.find(value=>value===Number(query.get('breeze')))??0;
  const challenge:Challenge={breeze,windHeading:breeze?HEADINGS.find(value=>value===Number(query.get('wind')))??0:0,gusts:query.get('gusts')==='1',turbulence:query.get('swirl')==='1'};
+ const world=WORLDS.find(value=>value===query.get('world')),windMode=WIND_MODES.find(value=>value===query.get('air'));
+ if(world)challenge.world=world;
+ if(windMode)challenge.windMode=windMode;
+ if(query.get('cannon')==='1')challenge.cannon=true;
  const distance=finite(query.get('dist'),0,10000),time=finite(query.get('time'),0,1000);
  if(distance!==undefined)challenge.distance=distance;
  if(time!==undefined)challenge.time=time;

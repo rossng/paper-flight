@@ -39,3 +39,11 @@ test('share text names the plane and the distance to beat',()=>{
  assert.equal(shareText(flight),'My paper plane (The Stable) flew 12.3 m in Paper Flight. Can you beat it?');
  assert.equal(shareText({...flight,design:'legacy',distance:undefined}),'Try my paper plane (Original dart) in Paper Flight!');
 });
+
+test('planets, special air and the cannon travel with the link',()=>{
+ const url=new URL(shareUrl({...flight,world:'moon',windMode:'tornado',cannon:true},'https://example.com/'));
+ assert.deepEqual(readChallenge(url.searchParams),{breeze:1.5,windHeading:90,gusts:true,turbulence:false,world:'moon',windMode:'tornado',cannon:true,distance:12.3,time:3.2});
+ const everyday=encodeShare({...flight,world:'earth',windMode:'none',cannon:false});
+ for(const key of ['world','air','cannon'])assert.equal(everyday.has(key),false,key);
+ assert.deepEqual(readChallenge(new URLSearchParams('world=venus&air=hurricane&cannon=yes')),{breeze:0,windHeading:0,gusts:false,turbulence:false});
+});
