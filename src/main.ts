@@ -2,13 +2,13 @@ import './style.css';
 import { Simulation, type Parameters } from './physics/simulation';
 import { FlightRunner, FlightPreparation } from './physics/flight-runner';
 import { materials, materialSettings, type MaterialId } from './physics/materials';
-import { airVelocity } from './physics/weather';
+import { airVelocity, type WindMode } from './physics/weather';
 import { elasticPull, pullTravel, launchSpeed, RELEASE_DURATION_MS, springRemaining } from './physics/launcher';
 import { FlightRecording } from './rendering/flight-recording';
-import { designMesh,flightRecipe,supportsElevator,supportsWingSpan } from './folding/design';
+import { designMesh,flightRecipe,supportsElevator,supportsWingSpan,supportsWingAngle} from './folding/design';
 import { FoldSequence, FoldAnimator } from './folding/animation';
 import { FoldingView } from './folding/view';
-import { designs,findDesign,sheetDesigns } from './folding/library';
+import { pickerDesigns as designs,findDesign,sheetDesigns } from './folding/library';
 import { designFold,collectionFold,foldFilename,saveFold } from './folding/downloads';
 import { readDesignSettings, readLaunchSettings } from './folding/settings';
 import { designThumbnail } from './folding/thumbnail';
@@ -36,7 +36,7 @@ $('app').innerHTML=`
 </section></main>
 <dialog id="downloads" aria-labelledby="downloads-title"><button id="downloads-close" class="close" aria-label="Close downloads">×</button><h2 id="downloads-title">Plane library</h2><p id="download-description"></p><p id="download-settings"></p><button id="download-fold" class="primary">Download this plane .fold ↓</button><p><a id="design-source" target="_blank" rel="noreferrer">Folding reference ↗</a></p><button id="download-collection" class="secondary">Download all sheet designs .fold ↓</button><p id="collection-description"></p><p><small>Independent geometry studies; no third-party templates or photos. FOLD includes original sheet and folded state in metres. Unknown crease assignments and layer order remain unspecified. Flights are uncalibrated.</small></p></dialog>
 <dialog id="notes" aria-labelledby="help-title"><button id="close" class="close" aria-label="Close help">×</button><h2 id="help-title">Ready, pilot?</h2><p><strong>✂ Fold</strong><br>Drag to look around. Next fold and Back move one step; Fold plane finishes it. Fly takes you straight to the launcher.</p><p><strong>➤ Throw</strong><br>Pull the plane back, aim, then release. The dial sets the throw angle; trim tilts the nose relative to that throw.</p><p><strong>◎ Explore</strong><br>After landing, scrub the replay and drag to orbit. Try the flex and balance markers.</p></dialog>
-<dialog id="weather-options" class="weather-dialog" aria-labelledby="weather-title"><button id="weather-close" class="close" aria-label="Close weather options">×</button><h2 id="weather-title">Weather machine</h2><p>Give your plane something to play with.</p><div class="weather-strength" aria-label="Breeze strength"><button data-breeze="0" aria-pressed="true">Still air</button><button data-breeze="1.5" aria-pressed="false">Breeze</button><button data-breeze="3" aria-pressed="false">Blustery</button></div><h3>Air blows toward</h3><div class="wind-rose"><div class="wind-compass" aria-hidden="true"><span id="weather-arrow">↑</span></div><div class="wind-directions"><button data-wind-direction="0" aria-pressed="true">↑ Downfield</button><button data-wind-direction="90" aria-pressed="false">→ Right</button><button data-wind-direction="180" aria-pressed="false">↓ Upfield</button><button data-wind-direction="270" aria-pressed="false">← Left</button></div></div><label class="weather-toggle"><input id="weather-gusts" type="checkbox"><span><b>Passing gusts</b><small>Bursts that build and fade</small></span></label><label class="weather-toggle"><input id="weather-turbulence" type="checkbox"><span><b>Turbulent air</b><small>Swirls and little updrafts</small></span></label><button id="weather-done" class="primary">Let’s try it ➤</button></dialog>`;
+<dialog id="weather-options" class="weather-dialog" aria-labelledby="weather-title"><button id="weather-close" class="close" aria-label="Close weather options">×</button><h2 id="weather-title">Weather machine</h2><p>Give your plane something to play with.</p><div class="weather-strength" aria-label="Breeze strength"><button data-breeze="0" aria-pressed="true">Still air</button><button data-breeze="1.5" aria-pressed="false">Breeze</button><button data-breeze="3" aria-pressed="false">Blustery</button></div><h3>Air blows toward</h3><div class="wind-rose"><div class="wind-compass" aria-hidden="true"><span id="weather-arrow">↑</span></div><div class="wind-directions"><button data-wind-direction="0" aria-pressed="true">↑ Downfield</button><button data-wind-direction="90" aria-pressed="false">→ Right</button><button data-wind-direction="180" aria-pressed="false">↓ Upfield</button><button data-wind-direction="270" aria-pressed="false">← Left</button></div></div><label class="weather-toggle"><input id="weather-gusts" type="checkbox"><span><b>Passing gusts</b><small>Bursts that build and fade</small></span></label><label class="weather-toggle"><input id="weather-turbulence" type="checkbox"><span><b>Turbulent air</b><small>Swirls and little updrafts</small></span></label><h3>Planet</h3><div class="weather-strength" id="world-choices"><button data-world="earth" aria-pressed="true">Earth</button><button data-world="moon" aria-pressed="false">Moon</button><button data-world="mars" aria-pressed="false">Mars</button><button data-world="venus" aria-pressed="false">Venus 🐢</button><button data-world="water" aria-pressed="false">Underwater 🐢</button></div><h3>Special air</h3><div class="weather-strength" id="wind-mode-choices"><button data-wind-mode="none" aria-pressed="true">None</button><button data-wind-mode="thermal" aria-pressed="false">Thermal at 5 m</button><button data-wind-mode="tornado" aria-pressed="false">Tornado at 6 m</button><button data-wind-mode="fan" aria-pressed="false">Desk fan →</button></div><h3>Launcher</h3><div class="weather-strength" id="launcher-choices"><button data-cannon="0" aria-pressed="true">Sling · up to 11 m/s</button><button data-cannon="1" aria-pressed="false">Cannon · up to 60 m/s</button></div><button id="weather-done" class="primary">Let’s try it ➤</button></dialog>`;
 const incoming=new URLSearchParams(location.search);let design=findDesign(incoming.get('design')??'')?.id??'legacy';
 let paperChoice=80,breeze=0,windHeading=0;
 let parameters:Parameters=readDesignSettings(incoming);paperChoice=parameters.material==='paper'?parameters.paperWeight:80;
@@ -73,7 +73,7 @@ function drawSheet(){
  $('fold').hidden=step===limit;$('finish-fold').hidden=step===limit;$('fold').textContent='Next fold →';$('go-throw').hidden=step<limit;
  $<HTMLButtonElement>('undo-fold').disabled=step===0;
  $('fold-checks').innerHTML=design==='legacy'?['Corners','Nose','Wings'].map((label,i)=>`<div class="${step>i?'done':''}"><b>${step>i?'✓':i+1}</b>${label}</div>`).join(''):`<div class="done"><b>✓</b>Real sheet</div><div class="${step?'done':''}"><b>${step}</b>Folds</div><div class="${step===limit?'done':''}"><b>${step===limit?'✓':'→'}</b>Flight</div>`;
- $('wing-size-controls').hidden=!supportsWingSpan(design);$('elevator-choices').hidden=!supportsElevator(design);
+ $('wing-size-controls').hidden=!supportsWingSpan(design);$('fold-choices').hidden=!supportsWingAngle(design);$('elevator-choices').hidden=!supportsElevator(design);
  $('wing-label').textContent=parameters.span<.9?'Narrow wings':parameters.span>1.1?'Broad wings':'Classic wings';updatePicker();
 }
 function animateFold(target:number){
@@ -139,7 +139,7 @@ function updateMaterial(){
  document.querySelector('.desk-sticker')!.innerHTML=`100%<br>${parameters.material==='paper'?'PAPER':parameters.material.toUpperCase()}<br><span>${parameters.material==='steel'?'0% sensible':'0% boring'}</span>`;
 }
 choice('paper-choices','weight',weight=>{paperChoice=weight;Object.assign(parameters,materialSettings('paper',weight));updateMaterial();});
-const specialChoices:[MaterialId,string][]=[['tissue','Floaty, floppy, a little see-through.'],['foil','Shiny wings. Crinkly ambitions.'],['steel','A flying doorstop. Good luck.'],['paper','Back to your regular paper pick.']];
+const specialChoices:[MaterialId,string][]=[['tissue','Floaty, floppy, a little see-through.'],['foil','Shiny wings. Crinkly ambitions.'],['steel','A flying doorstop. Good luck.'],['gold','2 gsm. Falls like an autumn leaf.'],['cardboard','300 gsm cereal box.'],['wet','Soggy, heavy and floppy.'],['paper','Back to your regular paper pick.']];
 function closeMaterials(){ $('material-menu').hidden=true;$('special-material').setAttribute('aria-expanded','false'); }
 function openMaterials(){
  closePicker();
@@ -167,7 +167,11 @@ $('unfold').onclick=()=>{cancelFolding();step=0;drawSheet();foldingView.home();r
 $('camera').onclick=()=>{if(viewport.reviewing){showFullPath();return;}if(mode==='workbench')foldingView.home();else{viewport.options.follow=!viewport.options.follow;$('camera').textContent=viewport.options.follow?'Camera: chase':'Camera: launch point';}};
 let pullX=0,pullY=0,dragging=false,startX=0,startY=0,aimPitch=readLaunchSettings(incoming).throwAngle,aimTrim=readLaunchSettings(incoming).trim,releasing=false;let slingPointer:number|null=null;
 function pullAmount(){return Math.hypot(pullX,pullY);}
-function releaseSpeed(){return launchSpeed(pullAmount());}
+// Fun settings: planets, special air features and a cannon launcher (🐢 = slow to simulate).
+const worlds:Record<string,{gravity:number;density:number;label:string}>={earth:{gravity:9.81,density:1.225,label:''},moon:{gravity:1.62,density:0,label:'Moon'},mars:{gravity:3.71,density:.02,label:'Mars'},venus:{gravity:8.87,density:65,label:'Venus'},water:{gravity:9.81,density:1000,label:'Underwater'}};
+const windModeLabels:Record<WindMode,string>={none:'',thermal:'Thermal',tornado:'Tornado',fan:'Desk fan'};
+let world='earth',windMode:WindMode='none',cannon=false;
+function releaseSpeed(){return launchSpeed(pullAmount())*(cannon?60/11:1);}
 function setPitch(value:number){if(simulation.status!=='ready'||releasing)return;aimPitch=((value+180)%360+360)%360-180;paintSling();}
 /** Trim is the plane's held angle of attack relative to the throw direction. */
 function setTrim(value:number){if(simulation.status!=='ready'||releasing||!Number.isFinite(value))return;aimTrim=Math.max(-45,Math.min(45,Math.round(value)));paintSling();}
@@ -217,7 +221,11 @@ $('sling').onkeydown=e=>{if(simulation.status!=='ready'||releasing)return;if(['A
 function updateWeather(){
  const angle=windHeading*Math.PI/180;parameters.wind=[breeze*Math.cos(angle),0,breeze*Math.sin(angle)];parameters.windHeading=windHeading;
  parameters.gusts=$<HTMLInputElement>('weather-gusts').checked?1.5:0;parameters.turbulence=$<HTMLInputElement>('weather-turbulence').checked?1:0;
- Object.assign(simulation.parameters,{wind:[...parameters.wind],windHeading,gusts:parameters.gusts,turbulence:parameters.turbulence});
+ parameters.gravity=worlds[world].gravity;parameters.density=worlds[world].density;parameters.windMode=windMode;
+ Object.assign(simulation.parameters,{wind:[...parameters.wind],windHeading,gusts:parameters.gusts,turbulence:parameters.turbulence,gravity:parameters.gravity,density:parameters.density,windMode});
+ document.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.world===world)));
+ document.querySelectorAll<HTMLButtonElement>('[data-wind-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.windMode===windMode)));
+ document.querySelectorAll<HTMLButtonElement>('[data-cannon]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.cannon==='1')===cannon)));
  document.querySelectorAll<HTMLButtonElement>('[data-breeze]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.breeze)===breeze)));
  document.querySelectorAll<HTMLButtonElement>('[data-wind-direction]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.windDirection)===windHeading)));
  $('weather-arrow').style.transform=`rotate(${windHeading}deg)`;updateWindIndicator();
@@ -225,7 +233,8 @@ function updateWeather(){
 function updateWindIndicator(){
  const frame=viewport.reviewing?viewport.reviewFrame:undefined,wind=airVelocity(simulation.parameters,frame?.time??simulation.time,frame?.center??simulation.center()),speed=Math.hypot(...wind);
  const angle=Math.atan2(wind[2],wind[0])*180/Math.PI;$('wind-arrow').style.transform=`rotate(${angle}deg)`;$('wind-arrow').style.opacity=speed<.05?'.25':'1';
- $('wind-readout').textContent=speed<.05&&!parameters.gusts&&!parameters.turbulence?'Still air':`${parameters.turbulence?'Swirly':parameters.gusts?'Gusty':'Breeze'} · ${speed.toFixed(1)} m/s`;
+ const extras=[worlds[world].label,windModeLabels[windMode],cannon?'Cannon':''].filter(Boolean).join(' · ');
+ $('wind-readout').textContent=(speed<.05&&!parameters.gusts&&!parameters.turbulence?'Still air':`${parameters.turbulence?'Swirly':parameters.gusts?'Gusty':'Breeze'} · ${speed.toFixed(1)} m/s`)+(extras?` · ${extras}`:'');
  $<HTMLButtonElement>('weather-button').disabled=simulation.status!=='ready'||releasing;
 }
 $('weather-button').onclick=()=>{if(simulation.status==='ready'&&!releasing)$<HTMLDialogElement>('weather-options').showModal();};
@@ -233,6 +242,9 @@ $('weather-close').onclick=$('weather-done').onclick=()=> $<HTMLDialogElement>('
  document.querySelectorAll<HTMLButtonElement>('[data-breeze]').forEach(button=>button.onclick=()=>{breeze=Number(button.dataset.breeze);updateWeather();});
  document.querySelectorAll<HTMLButtonElement>('[data-wind-direction]').forEach(button=>button.onclick=()=>{windHeading=Number(button.dataset.windDirection);updateWeather();});
 $('weather-gusts').onchange=$('weather-turbulence').onchange=updateWeather;
+document.querySelectorAll<HTMLButtonElement>('[data-world]').forEach(button=>button.onclick=()=>{world=button.dataset.world!;updateWeather();});
+document.querySelectorAll<HTMLButtonElement>('[data-wind-mode]').forEach(button=>button.onclick=()=>{windMode=button.dataset.windMode as WindMode;updateWeather();});
+document.querySelectorAll<HTMLButtonElement>('[data-cannon]').forEach(button=>button.onclick=()=>{cannon=button.dataset.cannon==='1';updateWeather();});
 function setInspector(open:boolean){$('review-inspector').hidden=!open;$('review-inspect').setAttribute('aria-expanded',String(open));}
 $('review-inspect').onclick=()=>{setInspector($('review-inspector').hidden);$<HTMLDetailsElement>('review-more').open=false;};
 $('review-inspector-close').onclick=()=>{setInspector(false);$('review-inspect').focus();};

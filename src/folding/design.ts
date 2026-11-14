@@ -9,6 +9,7 @@ export function supportsWingSpan(id:string){return findDesign(id)?.adjustableSpa
 export const ELEVATOR_DEPTH=.03;
 function deployedRecipe(id:string,parameters:Parameters):FoldRecipe {
  const original=findDesign(id)?.recipe;if(!original)throw Error('Unknown fold design');const recipe=structuredClone(original);recipe.gsm=parameters.paperWeight;
+ if(recipe.fixedWings)return recipe;
  for(const op of recipe.operations)if(op.id==='left-wing'||op.id==='right-wing'){
   const delta=(1-(supportsWingSpan(id)?parameters.span:1))*recipe.width/4;
   if(op.axis[0][0]>1e-8)op.axis[0][0]+=delta;op.axis[1][0]+=delta;
@@ -60,6 +61,7 @@ const elevatorSupport=new Map<string,boolean>();
 /** Validated per design: the flap must be a strain-free fold of the deployed wing. */
 export function supportsElevator(id:string){
  if(id==='legacy')return true;
+ if(findDesign(id)?.recipe?.fixedWings)return false;
  if(!elevatorSupport.has(id)){
   let ok=false;
   try{const recipe=deployedRecipe(id,{dihedral:8,span:1,paperWeight:80} as Parameters),ops=elevatorOperations(build(recipe),10);if(ops){build({...recipe,operations:[...recipe.operations,...ops]});ok=true;}}catch{ok=false;}
@@ -72,4 +74,14 @@ export function flightRecipe(id:string,parameters:Parameters):FoldRecipe {
  if(parameters.elevator&&supportsElevator(id)){const ops=elevatorOperations(build(recipe),parameters.elevator);if(ops)recipe.operations.push(...ops);}
  return recipe;
 }
-export function designMesh(id:string,parameters:Parameters){return compileFlightMesh(build(flightRecipe(id,parameters)),{size:parameters.size});}
+function transform(s:FoldState,f:(p:V3)=>V3):FoldState{return {...s,panels:s.panels.map(p=>({...p,points:p.points.map(q=>({uv:q.uv,position:f(q.position)}))}))};}
+/** Rigid rotations only: a backwards plane turns 180° about its vertical axis;
+ * a flat sheet is laid horizontal (sheet x becomes span). */
+function posed(state:FoldState){
+ if(state.recipe.pose==='backwards')return transform(state,([x,y,z])=>[x,-y,-z]);
+ if(state.recipe.pose==='flat')return transform(state,([x,y,z])=>[-z,y,x]);
+ return state;
+}
+/** Fun designs bake their wing deployment into later folds. */
+export function supportsWingAngle(id:string){return !findDesign(id)?.recipe?.fixedWings;}
+export function designMesh(id:string,parameters:Parameters){return compileFlightMesh(posed(build(flightRecipe(id,parameters))),{size:parameters.size});}

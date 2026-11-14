@@ -7,8 +7,8 @@ import { GroundContactSolver, GROUND_HEIGHT, type GroundSettings } from './groun
 import { sheetMaterial, prepareMaterialGeometry, hingeStiffness, updateCreasePlasticity, type SheetMaterial } from './sheet-material';
 import { createDart, hingeAngle, type PaperMesh } from '../geometry/dart';
 import { aerodynamicLoads, type PanelLoad, type AeroSettings } from './aerodynamics';
-import { airVelocity } from './weather';
-import { materialSettings, type MaterialId } from './materials';
+import { airVelocity, type WindMode } from './weather';
+import { materialSettings, materialFlex, type MaterialId } from './materials';
 import { RELEASE_DURATION_MS, springVelocityDelta } from './launcher';
 import { dampEdges, edgeBatch, edgeStrainsWithin, hingeBatch, limitEdgeStrains, setHingeOffset, solveHinges, solveLayerTie, type EdgeBatch, type HingeBatch } from './constraints';
 import { cross, dot, length, radians, sub, unit, wrapAngle, type V3 } from './math';
@@ -31,7 +31,7 @@ export const FIXED_DT=1/120;
 export const SUBSTEPS=3;
 /** Leave room for rendering/input; an indivisible substep can exceed this budget. */
 export const FRAME_PHYSICS_BUDGET_MS=12;
-export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; /** 'direct' solves each substep's elastic response exactly before the constraint sweeps; 'sweeps' leaves it to them. */ elasticSolve:'direct'|'sweeps'; newtonIterations:number; /** Fraction of `iterations` run after a direct elastic solve, where sweeps only reconcile contact. */ contactSweepShare:number; aeroStations:number; aeroChordPanels:number; stackCoupling:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; material:MaterialId; aero:boolean }
+export interface Parameters extends GroundSettings { aeroModel:'coupled'|'panels'; layerModel:'contact'|'bonded'; /** 'direct' solves each substep's elastic response exactly before the constraint sweeps; 'sweeps' leaves it to them. */ elasticSolve:'direct'|'sweeps'; newtonIterations:number; /** Fraction of `iterations` run after a direct elastic solve, where sweeps only reconcile contact. */ contactSweepShare:number; aeroStations:number; aeroChordPanels:number; stackCoupling:number; substeps:number; iterations:number; speed:number; launchDuration:number; pitch:number; heading:number; elevation:number; span:number; size:number; paperWeight:number; stiffness:number; crease:number; dihedral:number; elevator:number; height:number; gravity:number; density:number; wind:V3; windHeading:number; gusts:number; turbulence:number; windMode?:WindMode; material:MaterialId; aero:boolean }
 export const DEFAULTS: Parameters={groundStaticFriction:.55,groundKineticFriction:.38,aeroModel:'coupled',layerModel:'contact',elasticSolve:'direct',newtonIterations:16,contactSweepShare:.5,aeroStations:12,aeroChordPanels:4,stackCoupling:1,substeps:0,iterations:24,speed:6,launchDuration:RELEASE_DURATION_MS/1000,pitch:8,heading:0,elevation:0,span:1,size:1,paperWeight:80,stiffness:1,crease:1,dihedral:8,elevator:0,height:1.8,gravity:9.81,density:1.225,wind:[0,0,0],windHeading:0,gusts:0,turbulence:0,material:'paper',aero:true};
 export type Status='ready'|'flying'|'settling'|'landed'|'finished'|'error';
 export const isActiveStatus=(status:Status)=>status==='flying'||status==='settling';
@@ -105,7 +105,7 @@ export class Simulation {
   }
   aeroSettings(time=this.time):AeroSettings {
     return {model:this.parameters.aeroModel,surface:this.surface,enabled:this.parameters.aero,density:this.parameters.density,wind:this.parameters.wind,areaWeights:this.mesh.aeroWeights,
-      windAt:this.parameters.gusts||this.parameters.turbulence?position=>airVelocity(this.parameters,time,position):undefined};
+      windAt:this.parameters.gusts||this.parameters.turbulence||(this.parameters.windMode&&this.parameters.windMode!=='none')?position=>airVelocity(this.parameters,time,position):undefined};
   }
   /** Synchronous API for tests/offline runs; finishes any partially advanced step. */
   step() {this.stepUntil(()=>false);}
@@ -151,7 +151,7 @@ export class Simulation {
     const substeps=this.parameters.substeps||Math.min(96,Math.max(minimum,aeroSubsteps)),dt=FIXED_DT/substeps;
     const aeroStride=Math.max(1,Math.floor(substeps/aeroSubsteps));
     const preset=materialSettings(this.parameters.material,this.parameters.paperWeight);
-    const flatScale=this.parameters.stiffness/preset.stiffness,creaseScale=this.parameters.crease/preset.crease;
+    const flatScale=this.parameters.stiffness/preset.stiffness*(materialFlex[this.parameters.material]??1),creaseScale=this.parameters.crease/preset.crease;
     const count=this.positions.length,x=this.x,old=this.xOld,v=this.v,w=this.w,air=this.air,frame=this.frame++;
     const hinges=this.hingeBatch,edges=this.edgeBatch,membranes=this.membraneBatch,layers=this.layerContact,self=this.selfContact,ground=this.groundContact;
     const contact=this.parameters.layerModel==='contact';
