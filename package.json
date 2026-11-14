@@ -19,7 +19,9 @@
     "benchmark:performance": "node --import tsx tests/performance-benchmark.ts",
     "benchmark:realtime": "node --import tsx tests/realtime-benchmark.ts",
     "benchmark:compare": "node --import tsx tests/compare-performance.ts",
-    "benchmark:browser": "node tests/browser-performance.mjs"
+    "benchmark:browser": "node tests/browser-performance.mjs",
+    "reference": "node --import tsx reference/compare.ts",
+    "test:reference": "node --import tsx --test reference/tests/*.test.ts"
   },
   "dependencies": {
     "three": "0.180.0"

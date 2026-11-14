@@ -42,6 +42,10 @@ npm run preview    # Preview the built site locally
 
 Run `npm run test:full` when changing physics or folding.
 
+To see how far the real-time solver is from an accurate solution of the same model, run
+`npm run reference` (needs a Rust toolchain; see [the reference solver](docs/reference-solver.md)).
+It is a development tool and is not part of CI.
+
 For browser UI checks, start Vite and an isolated Chrome instance with remote
 debugging enabled (see [browser setup](docs/performance.md)), then run
 `npm run test:browser-ui -- --cdp 9297 --url http://127.0.0.1:5197/` against the dev server.
@@ -62,6 +66,8 @@ Technical notes and findings live in [`docs/`](docs/):
 - [Physics tests and results](docs/physics-validation.md)
 - [Performance report](docs/performance.md)
 - [Real-time solver](docs/realtime-solver.md)
+- [Reference solver](docs/reference-solver.md)
+- [Assessment of the flight model](docs/model-assessment.md)
 - [Plane library and downloads](docs/plane-library.md)
 - [Folding model and limits](docs/custom-folding.md)
 

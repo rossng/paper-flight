@@ -6,3 +6,6 @@ dist/
 *.cpuprofile
 docs/performance/*.json
 docs/performance/*.json.gz
+
+# Reference solver build output
+reference/solver/target/

@@ -1,0 +1,16 @@
+[package]
+name = "paperflight-reference"
+version = "0.1.0"
+edition = "2021"
+description = "Offline reference solver for Paper Flight. Not part of the browser build."
+license = "BlueOak-1.0.0"
+publish = false
+
+# No dependencies: builds offline with a stock toolchain.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
