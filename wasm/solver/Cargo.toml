@@ -1,0 +1,21 @@
+[package]
+name = "paperflight-wasm-solver"
+version = "0.1.0"
+edition = "2021"
+description = "Paper Flight's real-time flight solver, compiled to WebAssembly."
+license = "BlueOak-1.0.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+# No dependencies: builds offline with a stock toolchain.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
+panic = "abort"

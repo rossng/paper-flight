@@ -1,6 +1,7 @@
 import type { MaterialId } from './materials';
 import type { Edge, Hinge, PaperMesh } from '../geometry/dart';
-import { sub, length, cross, wrapAngle } from './math';
+import { sub, length, cross } from './math';
+import { kernel, F64 } from './solver';
 
 /** Nominal engineering inputs, not measurements of the user's sheet.
  * Paper MD follows material +v (the original long edge). SI throughout. */
@@ -54,10 +55,7 @@ export function hingeStiffness(m:SheetMaterial,h:Hinge,flatScale=1,creaseScale=1
  * Store only permanent offset; kinematic recipe rest angles stay immutable. */
 export function updateCreasePlasticity(h:Hinge,angle:number,m:SheetMaterial){
   if(!h.crease)return;
-  const offset=h.plasticOffset??0,error=wrapAngle(angle-h.rest-offset);
-  const accumulated=h.plasticAccumulated??0,yieldAngle=m.yieldAngle+m.hardening*accumulated;
-  if(Math.abs(error)>yieldAngle){
-    const increment=(Math.abs(error)-yieldAngle)/(1+m.hardening);
-    h.plasticOffset=offset+Math.sign(error)*increment;h.plasticAccumulated=accumulated+increment;
-  }
+  if(!kernel.call.crease_plasticity(angle,h.rest,h.plasticOffset??0,h.plasticAccumulated??0,m.yieldAngle,m.hardening))return;
+  const [offset,accumulated]=kernel.read64(F64.x);
+  h.plasticOffset=offset;h.plasticAccumulated=accumulated;
 }

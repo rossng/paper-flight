@@ -1,6 +1,6 @@
 # Third-party notices
 
-The signed dihedral gradients in `src/physics/constraints.ts` are adapted from
+The signed dihedral gradients in the flight solver (`wasm/solver/src/sweeps.rs` and `elastic.rs`) are adapted from
 `solve_DihedralConstraint` in [PositionBasedDynamics](https://github.com/InteractiveComputerGraphics/PositionBasedDynamics/blob/master/PositionBasedDynamics/PositionBasedDynamics.cpp).
 This implementation uses a signed `atan2` angle and XPBD compliance instead of the original PBD stiffness projection.
 The reference solver (`reference/solver/src/elements.rs`) uses the same gradients for its hinge energy.
@@ -34,7 +34,7 @@ SOFTWARE.
 - Three.js: MIT; its complete license is included at `licenses/three-LICENSE`.
 - Vite, TypeScript, tsx, and type definitions are development dependencies; their licenses ship with their npm packages. TypeScript is Apache-2.0; Vite and tsx are MIT.
 - Origami Simulator was investigated as a design reference for triangulated bar-and-hinge origami. No code from Origami Simulator is included.
-- The reference solver's sparse LDLᵀ factorisation (`reference/solver/src/linalg.rs`) is a Rust re-implementation of the up-looking algorithm of T. A. Davis, "Algorithm 849: A concise sparse Cholesky factorization package", ACM TOMS 31(4), 2005. The LDL package itself (LGPL) is not included or linked.
+- The sparse LDLᵀ factorisations of the reference solver (`reference/solver/src/linalg.rs`) and of the flight solver (`wasm/solver/src/elastic.rs`, with its symbolic part in `src/physics/elastic-solve.ts`) are re-implementations of the up-looking algorithm of T. A. Davis, "Algorithm 849: A concise sparse Cholesky factorization package", ACM TOMS 31(4), 2005. The LDL package itself (LGPL) is not included or linked.
 - XPBD equations are implemented from [Macklin, Müller, and Chentanez (2016)](https://matthias-research.github.io/pages/publications/XPBD.pdf).
 
 ## Plane-library references

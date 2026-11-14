@@ -23,10 +23,15 @@ test('panel aerodynamics samples local weather and replay samples the requested 
  const wind:V3=[1,.2,-.5],zeros=()=>positions.map(()=>[0,0,0] as V3);
  const settings={enabled:true,density:1.225,wind};
  const baseline=aerodynamicLoads(positions,velocities,faces,settings,zeros())[0];
- const local=aerodynamicLoads(positions,velocities,faces,{...settings,wind:[0,0,0],windAt:()=>wind},zeros())[0];assert.deepEqual(local,baseline);
+ const local=aerodynamicLoads(positions,velocities,faces,{...settings,wind:[0,0,0],air:{weather:{wind,gusts:0,turbulence:0},time:0}},zeros())[0];assert.deepEqual(local,baseline);
+ // Gusts and turbulence are sampled at the panel's own centre and at the requested time.
+ const weather={wind,gusts:1.5,turbulence:1},centre:V3=[.2/3,0,.2/3];
+ const gusty=aerodynamicLoads(positions,velocities,faces,{...settings,air:{weather,time:.3}},zeros())[0];
+ assert.deepEqual(gusty,aerodynamicLoads(positions,velocities,faces,{...settings,wind:airVelocity(weather,.3,centre)},zeros())[0]);
+ assert.notDeepEqual(gusty,baseline);
  const sim=new Simulation({wind,gusts:1.5,turbulence:1});sim.time=8;
- assert.deepEqual(sim.aeroSettings(.3).windAt!(positions[0]),airVelocity(sim.parameters,.3,positions[0]));
- assert.notDeepEqual(sim.aeroSettings(.3).windAt!(positions[0]),sim.aeroSettings().windAt!(positions[0]));
+ assert.deepEqual(sim.aeroSettings(.3).air,{weather:sim.parameters,time:.3});
+ assert.equal(sim.aeroSettings().air!.time,8);
 });
 
 test('materials change real mass and bending properties, including folded layers',()=>{

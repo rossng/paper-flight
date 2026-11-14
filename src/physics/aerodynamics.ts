@@ -1,41 +1,51 @@
-import { liftingSurfaceLoads, type LiftingSurface } from './lifting-surface';
-import { clamp, cross, dot, length, scale, sub, unit, type V3 } from './math';
+import type { LiftingSurface } from './lifting-surface';
+import { dot, length, scale, type V3 } from './math';
+import { stagedWeather, type Weather } from './weather';
 import type { Face } from '../geometry/dart';
+import { kernel, F64, I32 } from './solver';
 export interface PanelLoad { center: V3; force: V3; lift: V3; alpha: number; area: number; stalled: boolean }
-export interface AeroSettings { density: number; wind: V3; enabled: boolean; model?:'coupled'|'panels'; surface?:LiftingSurface; areaWeights?:number[]; windAt?:(position:V3)=>V3; exposure?:{values:Float64Array;valid:boolean} }
+/** `wind` is uniform; `air` replaces it with the weather's gusts, turbulence and air feature at `time`. */
+export interface AeroSettings { density: number; wind: V3; enabled: boolean; model?:'coupled'|'panels'; surface?:LiftingSurface; areaWeights?:number[]; air?:{weather:Weather;time:number} }
 /** Quasi-steady low-aspect-ratio polar with a smooth, unvalidated separated-flow blend. */
 export function coefficients(alpha: number) {
-  const a=Math.abs(alpha), start=15*Math.PI/180, end=30*Math.PI/180;
-  const t=clamp((a-start)/(end-start),0,1), blend=t*t*(3-2*t);
-  const attached=2.7*alpha;
-  const cl=(1-blend)*attached+blend*0.85*Math.sin(2*alpha);
-  const cd=(1-blend)*(0.035+0.18*cl*cl)+blend*(0.08+1.75*Math.sin(alpha)**2);
-  return {cl,cd,stalled:a>start};
+  return {cl:kernel.call.polar(alpha,0),cd:kernel.call.polar(alpha,1),stalled:kernel.call.polar(alpha,2)===1};
 }
-/** Reads CURRENT vertices, areas, normals and velocities every substep. No rest normals. */
+/** Twelve values per panel, as the solver and flight messages pack them. */
+export function unpackPanels(raw:ArrayLike<number>):PanelLoad[] {
+  return Array.from({length:raw.length/12},(_,i)=>{const o=12*i;
+    return {center:[raw[o],raw[o+1],raw[o+2]],force:[raw[o+3],raw[o+4],raw[o+5]],lift:[raw[o+6],raw[o+7],raw[o+8]],alpha:raw[o+9],area:raw[o+10],stalled:raw[o+11]===1};});
+}
+// One solver-side lifting surface per surface object, rebuilt if it is used with other faces.
+const surfaces=new WeakMap<LiftingSurface,{faces:Int32Array;aero:number;key:object}>();
+function solverSurface(surface:LiftingSurface,faces:Face[]){
+  const flat=Int32Array.from(faces.flat()),held=surfaces.get(surface);
+  if(held&&held.faces.length===flat.length&&held.faces.every((v,i)=>v===flat[i]))return held.aero;
+  if(held)kernel.call.aero_free(held.aero);
+  kernel.i32(I32.faces,flat);kernel.i32(I32.faceOwners,surface.owners??[]);kernel.f64(F64.faceSigns,surface.signs);kernel.f64(F64.boundaries,surface.boundaries);
+  kernel.i32(I32.patchFace,surface.patches.map(q=>q.face));kernel.i32(I32.patchStation,surface.patches.map(q=>q.station));kernel.i32(I32.patchPanel,surface.patches.map(q=>q.panel??q.station));
+  kernel.f64(F64.patchWeights,surface.patches.flatMap(q=>q.weights));kernel.f64(F64.patchFraction,surface.patches.map(q=>q.fraction));
+  kernel.i32(I32.landmarks,[surface.nose,surface.tail,surface.left,surface.right]);
+  kernel.f64(F64.a,[surface.shieldingDistance,surface.span,surface.chordPanels??1,surface.owners?1:0]);
+  const aero=kernel.call.aero_create(),key={};
+  surfaces.set(surface,{faces:flat,aero,key});
+  return aero;
+}
+/** Air loads of one state, from CURRENT vertices, areas, normals and velocities: the
+ * coupled lifting surface, or with no surface (or `model: 'panels'`) each triangle as a
+ * flat plate at its own incidence. Adds each vertex's share to `out`. */
 export function aerodynamicLoads(positions: V3[], velocities: V3[], faces: Face[], settings: AeroSettings, out: V3[]): PanelLoad[] {
-  if(settings.surface&&settings.model!=='panels')return liftingSurfaceLoads(positions,velocities,faces,settings,out);
-  const panels: PanelLoad[]=[];
-  for(const [fi,[a,b,c]] of faces.entries()) {
-    const pa=positions[a],pb=positions[b],pc=positions[c];
-    const center: V3=[(pa[0]+pb[0]+pc[0])/3,(pa[1]+pb[1]+pc[1])/3,(pa[2]+pb[2]+pc[2])/3];
-    const av=cross(sub(pb,pa),sub(pc,pa)), twiceArea=length(av), area=twiceArea/2*(settings.areaWeights?.[fi]??1);
-    const v: V3=[0,0,0],wind=settings.windAt?.(center)??settings.wind;
-    for(let d=0;d<3;d++) v[d]=(velocities[a][d]+velocities[b][d]+velocities[c][d])/3-wind[d];
-    const speed=length(v), force: V3=[0,0,0], liftForce: V3=[0,0,0];
-    let alpha=0,stalled=false;
-    if(settings.enabled && twiceArea>1e-12 && speed>1e-8) {
-      const n=scale(av,1/twiceArea), direction=scale(v,1/speed), s=clamp(dot(n,direction),-1,1);
-      alpha=Math.asin(-s);
-      const polar=coefficients(alpha); stalled=polar.stalled;
-      // Lift perpendicular to velocity; drag always removes energy in still air.
-      const lift=unit(sub(n,scale(direction,s))), qA=0.5*settings.density*speed*speed*area;
-      for(let d=0;d<3;d++) {liftForce[d]=qA*polar.cl*lift[d];force[d]=qA*(polar.cl*lift[d]-polar.cd*direction[d]);}
-      for(const i of [a,b,c]) for(let d=0;d<3;d++) out[i][d]+=force[d]/3;
-    }
-    panels.push({center,force,lift:liftForce,alpha,area,stalled});
+  const coupled=settings.surface&&settings.model!=='panels',aero=coupled?solverSurface(settings.surface!,faces):0;
+  const weather=settings.air?.weather,wind=weather?.wind??settings.wind;
+  kernel.vectors(F64.positions,positions);kernel.vectors(F64.velocities,velocities);kernel.vectors(F64.x,out);
+  kernel.f64(F64.a,stagedWeather({wind,windHeading:weather?.windHeading,gusts:weather?.gusts??0,turbulence:weather?.turbulence??0,windMode:weather?.windMode}));
+  const time=settings.air?.time??0,enabled=settings.enabled?1:0;
+  if(coupled)kernel.call.aero_loads(aero,time,enabled,settings.density);
+  else{
+    kernel.i32(I32.faces,faces.flat());kernel.f64(F64.areaWeights,settings.areaWeights??[]);
+    kernel.call.panel_loads(time,enabled,settings.density);
   }
-  return panels;
+  kernel.readVectors(F64.x,out);
+  return unpackPanels(kernel.read64(F64.b));
 }
 
 /** Signed lift centroid projected along net lift. This is an estimate for

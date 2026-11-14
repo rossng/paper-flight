@@ -9,7 +9,7 @@ npm run reference -- --speeds 5,6,7    # several launch speeds each
 npm run test:reference                 # cross-checks against the game (about 90 s)
 ```
 
-Both need a Rust toolchain ([rustup.rs](https://rustup.rs)); the solver has no dependencies and builds in a few seconds. Reference flights are stored in `reference/results/` and reused until the launch, the mesh, the material model or the solver's source changes, so repeated comparisons while working on the game only re-fly the game. `--stored-only` never runs the solver.
+Both need a Rust toolchain ([rustup.rs](https://rustup.rs)), as the game itself does; the solver has no dependencies and builds in a few seconds. Reference flights are stored in `reference/results/` and reused until the launch, the mesh, the material model or the solver's source changes, so repeated comparisons while working on the game only re-fly the game. `--stored-only` never runs the solver.
 
 ## What "reference" means here
 
@@ -17,7 +17,7 @@ The reference is the game's model, as documented in [the physics notes](physics-
 
 The two solvers share the problem set-up and nothing else. `reference/export.ts` writes the mesh, masses, material constants, hinge rigidities, launch and weather that `Simulation` sets up into a text file. The Rust solver reads that file and has its own implementation of every force and of the time integration.
 
-| | Game (`src/physics`) | Reference (`reference/solver`) |
+| | Game (`wasm/solver`) | Reference (`reference/solver`) |
 | --- | --- | --- |
 | Time integration | Position-based (XPBD), 3 or more substeps per 1/120 s | Implicit BDF2, 64 steps per 1/120 s |
 | Elastic solve | Newton with a sparse direct solve to 1 µm, without contact, then 9–12 Gauss–Seidel sweeps; sweeps alone near the floor | Newton with a sparse direct solve, contact included, to 0.1 nm |
