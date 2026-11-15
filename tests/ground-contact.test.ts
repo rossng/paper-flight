@@ -75,6 +75,16 @@ test('a frictionless moving sheet times out without being mislabeled as resting'
  assert.ok(Math.abs(sim.center(sim.velocities)[0]-1)<1e-8);
 });
 
+test('a flight that never touches down times out after a minute, not twelve seconds',()=>{
+ // Without gravity the sheet hangs in the air, as one held up by a thermal or fan can.
+ const sim=new Simulation({aero:false,gravity:0,height:2,speed:0,launchDuration:0});sim.launch();
+ while(sim.active&&sim.time<12.5)sim.step();
+ assert.equal(sim.status,'flying');
+ while(sim.active)sim.step();
+ assert.equal(sim.status,'finished');assert.equal(sim.touchdown,undefined);
+ assert.ok(Math.abs(sim.time-60)<.02,`timed out at ${sim.time}s`);
+});
+
 test('sleep uses world velocity even when the airspeed readout is nonzero',()=>{
  const sim=new Simulation({aero:false,height:.1,speed:0,wind:[3,0,0]});sim.launch();
  while(sim.active)sim.step();

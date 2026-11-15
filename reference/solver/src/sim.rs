@@ -43,7 +43,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Options { steps_per_frame: 64, aero_stations: 0, aero_chord: 0, patch_area: 2.5e-5, contact_stiffness: 2e4, contact_range: 1e-3,
-            contact_margin: 5e-4, side_gap: 1e-9, fold_gap: 1e-6, tolerance: 1e-10, after_touchdown: 0.0, max_time: 12.0, ignore_sides: false }
+            contact_margin: 5e-4, side_gap: 1e-9, fold_gap: 1e-6, tolerance: 1e-10, after_touchdown: 0.0, max_time: 60.0, ignore_sides: false }
     }
 }
 
@@ -509,7 +509,7 @@ impl Simulation {
             if touched && self.quiet_time >= 0.5 { self.status = Status::Landed; }
             else if self.time - touchdown.time >= 8.0 { self.status = Status::Finished; }
             else if self.options.after_touchdown >= 0.0 && self.time - touchdown.time >= self.options.after_touchdown { self.status = Status::Stopped; }
-        } else if self.time >= self.options.max_time.min(12.0) - 1e-9 { self.status = Status::Finished; }
+        } else if self.time >= self.options.max_time - 1e-9 { self.status = Status::Finished; }
         if self.x.iter().any(|c| !(c.abs() <= 1000.0)) { self.status = Status::Error; }
     }
 
