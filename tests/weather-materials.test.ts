@@ -18,6 +18,22 @@ test('weather is deterministic, spatially varying, continuous and calm by defaul
  let divergence=0;for(let d=0;d<3;d++){const a=[...point] as V3,b=[...point] as V3;a[d]+=.001;b[d]-=.001;divergence+=(airVelocity(weather,.7,a)[d]-airVelocity(weather,.7,b)[d])/.002;}assert.ok(Math.abs(divergence)<1e-10);
 });
 
+test('air features are fixed in the field and reach the flight',()=>{
+ const calm={wind:[0,0,0] as V3,gusts:0,turbulence:0};
+ assert.deepEqual(airVelocity({...calm,windMode:'none'},1,[5,1,0]),[0,0,0]);
+ // A thermal rises at 3.5 m/s on its axis, 5 m downfield, and fades away from it.
+ assert.deepEqual(airVelocity({...calm,windMode:'thermal'},1,[5,1,0]),[0,3.5,0]);
+ assert.ok(airVelocity({...calm,windMode:'thermal'},1,[9,1,0])[1]<.2);
+ // A tornado turns about its axis at (6, 1): the air on either side moves opposite ways.
+ const near=airVelocity({...calm,windMode:'tornado'},1,[7,1,1]),far=airVelocity({...calm,windMode:'tornado'},1,[5,1,1]);
+ assert.ok(near[2]>5&&far[2]<-5&&Math.abs(near[0])<1e-9&&near[1]>0);
+ // A fan blows across the field at launch height.
+ const fan=airVelocity({...calm,windMode:'fan'},1,[0,1.6,0]);
+ assert.ok(fan[2]>3&&fan[0]===0&&fan[1]===0&&airVelocity({...calm,windMode:'fan'},1,[0,.2,0])[2]<.2);
+ const height=(windMode:'none'|'thermal')=>{const sim=new Simulation({windMode});sim.launch();let peak=0;while(sim.active&&!sim.touchdown){sim.step();peak=Math.max(peak,sim.center()[1]);}return peak;};
+ assert.ok(height('thermal')>height('none')+.2,'a thermal carries the plane higher');
+});
+
 test('panel aerodynamics samples local weather and replay samples the requested time',()=>{
  const positions:V3[]=[[0,0,0],[.2,0,0],[0,0,.2]],velocities:V3[]=positions.map(()=>[6,-1,0]),faces:[number,number,number][]=[[0,1,2]];
  const wind:V3=[1,.2,-.5],zeros=()=>positions.map(()=>[0,0,0] as V3);
