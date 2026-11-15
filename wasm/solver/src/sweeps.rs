@@ -3,6 +3,7 @@
 //! applied to velocities afterwards. All read flat xyz coordinates, three per vertex.
 use crate::fast::{R, W};
 use crate::js;
+use crate::lanes::{sweep_order, Lanes, F2};
 
 /// One membrane triangle per face, as structure-of-arrays. `md` and `cd` are the
 /// constant reference shape gradients in the two orthogonal material directions, three
@@ -15,6 +16,14 @@ pub struct MembraneBatch {
     pub cd: Vec<f64>,
     pub alpha: Vec<f64>,
     pub lambda: Vec<f64>,
+    /// The sweep's order: see `sweep_order`.
+    order: Vec<i32>,
+}
+impl MembraneBatch {
+    pub fn new(faces: Vec<i32>, md: Vec<f64>, cd: Vec<f64>, alpha: Vec<f64>, lambda: Vec<f64>) -> Self {
+        let order = sweep_order(&faces, 3);
+        MembraneBatch { faces, md, cd, alpha, lambda, order }
+    }
 }
 /// Structure-of-arrays hinge data: four vertex ids (the two wing vertices, then the
 /// shared edge), rest angle, plastic offset and the sine and cosine of the target angle,
@@ -27,6 +36,8 @@ pub struct HingeBatch {
     pub target_cos: Vec<f64>,
     pub alpha: Vec<f64>,
     pub lambda: Vec<f64>,
+    /// The sweep's order: see `sweep_order`.
+    order: Vec<i32>,
 }
 /// Edges as vertex id pairs with their rest lengths.
 pub struct EdgeBatch {
@@ -41,6 +52,12 @@ pub struct LayerTies {
 }
 
 impl HingeBatch {
+    /// Hinges with no plastic offset set yet, and so no target angle.
+    pub fn new(ids: Vec<i32>, rest: Vec<f64>, alpha: Vec<f64>, lambda: Vec<f64>) -> Self {
+        let count = rest.len();
+        let order = sweep_order(&ids, 4);
+        HingeBatch { ids, rest, offset: vec![f64::NAN; count], target_sin: vec![0.0; count], target_cos: vec![0.0; count], alpha, lambda, order }
+    }
     /// Set hinge j's permanent (plastic) offset from its rest angle.
     pub fn set_offset(&mut self, j: usize, offset: f64) {
         // An offset that has never been set is NaN, which never compares equal, so the
@@ -55,112 +72,155 @@ impl HingeBatch {
 /// Diagonal orthotropic membrane energy: Et A/2 times squared Green normal
 /// strain, Gt A/2 times squared engineering shear. Poisson membrane coupling is
 /// omitted; explicit shear prevents skinny triangles collapsing like bar nets.
-/// One XPBD sweep; `alpha` is compliance/dt² per mode.
-pub fn solve_membranes(x: &mut [f64], w: &[f64], batch: &mut MembraneBatch, forward: bool) {
-    let count = batch.faces.len() / 3;
-    let (faces, md, cd, alpha) = (R(&batch.faces), R(&batch.md), R(&batch.cd), R(&batch.alpha));
-    let mut lambda = W(&mut batch.lambda);
-    let mut x = W(x);
-    let w = R(w);
-    for k in 0..count {
-        let t = 3 * if forward { k } else { count - 1 - k };
-        let (ia, ib, ic) = (faces[t] as usize, faces[t + 1] as usize, faces[t + 2] as usize);
-        let (a, b, c) = (3 * ia, 3 * ib, 3 * ic);
-        let (wa, wb, wc) = (w[ia], w[ib], w[ic]);
-        let (mut ax, mut ay, mut az) = (x[a], x[a + 1], x[a + 2]);
-        let (mut bx, mut by, mut bz) = (x[b], x[b + 1], x[b + 2]);
-        let (mut cx, mut cy, mut cz) = (x[c], x[c + 1], x[c + 2]);
-        let (m0, m1, m2, c0, c1, c2) = (md[t], md[t + 1], md[t + 2], cd[t], cd[t + 1], cd[t + 2]);
-        // Each normal mode needs only its own material derivative. Recompute it
-        // after the preceding Gauss-Seidel correction; shear still needs both.
-        for mode in 0..2 {
-            let (d0, d1, d2) = if mode == 1 { (c0, c1, c2) } else { (m0, m1, m2) };
-            let (ex, ey, ez, fx, fy, fz) = (bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az);
-            let (ux, uy, uz) = (d1 * ex + d2 * fx, d1 * ey + d2 * fy, d1 * ez + d2 * fz);
-            let cval = (ux * ux + uy * uy + uz * uz - 1.0) / 2.0;
-            let stiffness = alpha[t + mode];
-            let (g0x, g0y, g0z, g1x, g1y, g1z, g2x, g2y, g2z) = (d0 * ux, d0 * uy, d0 * uz, d1 * ux, d1 * uy, d1 * uz, d2 * ux, d2 * uy, d2 * uz);
-            let den = stiffness + wa * (g0x * g0x + g0y * g0y + g0z * g0z) + wb * (g1x * g1x + g1y * g1y + g1z * g1z) + wc * (g2x * g2x + g2y * g2y + g2z * g2z);
-            let delta = (-cval - stiffness * lambda[t + mode]) / den;
-            lambda[t + mode] += delta;
-            let (sa, sb, sc) = (wa * delta, wb * delta, wc * delta);
-            ax += sa * g0x; ay += sa * g0y; az += sa * g0z;
-            bx += sb * g1x; by += sb * g1y; bz += sb * g1z;
-            cx += sc * g2x; cy += sc * g2y; cz += sc * g2z;
-        }
+/// One XPBD projection of face `f` (or of two faces that share no vertex); `alpha` is
+/// compliance/dt² per mode.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn membrane<T: Lanes>(x: *mut f64, w: *const f64, faces: *const i32, md: *const f64, cd: *const f64, alpha: *const f64, lambda: *mut f64, f: T::Idx) {
+    let (ia, ib, ic) = (T::id(faces, f, 3, 0), T::id(faces, f, 3, 1), T::id(faces, f, 3, 2));
+    let (wa, wb, wc) = (T::get(w, ia, 1, 0), T::get(w, ib, 1, 0), T::get(w, ic, 1, 0));
+    let (mut ax, mut ay, mut az) = (T::get(x, ia, 3, 0), T::get(x, ia, 3, 1), T::get(x, ia, 3, 2));
+    let (mut bx, mut by, mut bz) = (T::get(x, ib, 3, 0), T::get(x, ib, 3, 1), T::get(x, ib, 3, 2));
+    let (mut cx, mut cy, mut cz) = (T::get(x, ic, 3, 0), T::get(x, ic, 3, 1), T::get(x, ic, 3, 2));
+    let (m0, m1, m2) = (T::get(md, f, 3, 0), T::get(md, f, 3, 1), T::get(md, f, 3, 2));
+    let (c0, c1, c2) = (T::get(cd, f, 3, 0), T::get(cd, f, 3, 1), T::get(cd, f, 3, 2));
+    let (one, half) = (T::splat(1.0), T::splat(0.5));
+    // The gradient of a normal strain at vertex i is d_i u, and of the shear m_i v + c_i u,
+    // with u and v the deformed material directions. So the projections' denominators need
+    // only u·u, u·v and v·v and these weighted sums of the shape gradients.
+    let (pm0, pm1, pm2, pc0, pc1, pc2) = (wa * m0, wb * m1, wc * m2, wa * c0, wb * c1, wc * c2);
+    let kmm = pm0 * m0 + pm1 * m1 + pm2 * m2;
+    let kcc = pc0 * c0 + pc1 * c1 + pc2 * c2;
+    let kmc = pm0 * c0 + pm1 * c1 + pm2 * c2;
+    // Each normal mode needs only its own material derivative. Recompute it
+    // after the preceding Gauss-Seidel correction; shear still needs both.
+    for mode in 0..2 {
+        let (d1, d2, p0, p1, p2, k) = if mode == 1 { (c1, c2, pc0, pc1, pc2, kcc) } else { (m1, m2, pm0, pm1, pm2, kmm) };
         let (ex, ey, ez, fx, fy, fz) = (bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az);
-        let (ux, uy, uz) = (m1 * ex + m2 * fx, m1 * ey + m2 * fy, m1 * ez + m2 * fz);
-        let (vx, vy, vz) = (c1 * ex + c2 * fx, c1 * ey + c2 * fy, c1 * ez + c2 * fz);
-        let cval = ux * vx + uy * vy + uz * vz;
-        let stiffness = alpha[t + 2];
-        let (g0x, g0y, g0z) = (m0 * vx + c0 * ux, m0 * vy + c0 * uy, m0 * vz + c0 * uz);
-        let (g1x, g1y, g1z) = (m1 * vx + c1 * ux, m1 * vy + c1 * uy, m1 * vz + c1 * uz);
-        let (g2x, g2y, g2z) = (m2 * vx + c2 * ux, m2 * vy + c2 * uy, m2 * vz + c2 * uz);
-        let den = stiffness + wa * (g0x * g0x + g0y * g0y + g0z * g0z) + wb * (g1x * g1x + g1y * g1y + g1z * g1z) + wc * (g2x * g2x + g2y * g2y + g2z * g2z);
-        let delta = (-cval - stiffness * lambda[t + 2]) / den;
-        lambda[t + 2] += delta;
-        let (sa, sb, sc) = (wa * delta, wb * delta, wc * delta);
-        x[a] = ax + sa * g0x; x[a + 1] = ay + sa * g0y; x[a + 2] = az + sa * g0z;
-        x[b] = bx + sb * g1x; x[b + 1] = by + sb * g1y; x[b + 2] = bz + sb * g1z;
-        x[c] = cx + sc * g2x; x[c + 1] = cy + sc * g2y; x[c + 2] = cz + sc * g2z;
+        let (ux, uy, uz) = (d1 * ex + d2 * fx, d1 * ey + d2 * fy, d1 * ez + d2 * fz);
+        let uu = ux * ux + uy * uy + uz * uz;
+        let cval = (uu - one) * half;
+        let stiffness = T::get(alpha, f, 3, mode);
+        let multiplier = T::get(lambda, f, 3, mode);
+        let delta = (-cval - stiffness * multiplier) / (stiffness + uu * k);
+        (multiplier + delta).set(lambda, f, 3, mode);
+        let (sa, sb, sc) = (p0 * delta, p1 * delta, p2 * delta);
+        ax = ax + sa * ux; ay = ay + sa * uy; az = az + sa * uz;
+        bx = bx + sb * ux; by = by + sb * uy; bz = bz + sb * uz;
+        cx = cx + sc * ux; cy = cy + sc * uy; cz = cz + sc * uz;
+    }
+    let (ex, ey, ez, fx, fy, fz) = (bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az);
+    let (ux, uy, uz) = (m1 * ex + m2 * fx, m1 * ey + m2 * fy, m1 * ez + m2 * fz);
+    let (vx, vy, vz) = (c1 * ex + c2 * fx, c1 * ey + c2 * fy, c1 * ez + c2 * fz);
+    let cval = ux * vx + uy * vy + uz * vz;
+    let (uu, vv) = (ux * ux + uy * uy + uz * uz, vx * vx + vy * vy + vz * vz);
+    let stiffness = T::get(alpha, f, 3, 2);
+    let multiplier = T::get(lambda, f, 3, 2);
+    let delta = (-cval - stiffness * multiplier) / (stiffness + vv * kmm + (cval + cval) * kmc + uu * kcc);
+    (multiplier + delta).set(lambda, f, 3, 2);
+    let (ma, mb, mc, na, nb, nc) = (pm0 * delta, pm1 * delta, pm2 * delta, pc0 * delta, pc1 * delta, pc2 * delta);
+    (ax + ma * vx + na * ux).set(x, ia, 3, 0); (ay + ma * vy + na * uy).set(x, ia, 3, 1); (az + ma * vz + na * uz).set(x, ia, 3, 2);
+    (bx + mb * vx + nb * ux).set(x, ib, 3, 0); (by + mb * vy + nb * uy).set(x, ib, 3, 1); (bz + mb * vz + nb * uz).set(x, ib, 3, 2);
+    (cx + mc * vx + nc * ux).set(x, ic, 3, 0); (cy + mc * vy + nc * uy).set(x, ic, 3, 1); (cz + mc * vz + nc * uz).set(x, ic, 3, 2);
+}
+
+/// One XPBD sweep over every membrane, in an order equivalent to index order (reversed
+/// when not `forward`), two independent faces at a time where the mesh allows.
+pub fn solve_membranes(x: &mut [f64], w: &[f64], batch: &mut MembraneBatch, forward: bool) {
+    let slots = batch.order.len() / 2;
+    let order = R(&batch.order);
+    let (x, w, faces, md, cd, alpha, lambda) = (x.as_mut_ptr(), w.as_ptr(), batch.faces.as_ptr(), batch.md.as_ptr(), batch.cd.as_ptr(), batch.alpha.as_ptr(), batch.lambda.as_mut_ptr());
+    for k in 0..slots {
+        let s = 2 * if forward { k } else { slots - 1 - k };
+        let (first, second) = (order[s] as usize, order[s + 1]);
+        // Indices come from the mesh set-up and are in range by construction.
+        unsafe {
+            if second < 0 { membrane::<f64>(x, w, faces, md, cd, alpha, lambda, first); } else { membrane::<F2>(x, w, faces, md, cd, alpha, lambda, [first, second as usize]); }
+        }
     }
 }
 
-/// One XPBD sweep over every hinge, on the signed dihedral angle. `alpha` is
-/// compliance/dt² per hinge. The signed-angle gradients are adapted from MIT-licensed
+/// One XPBD projection of hinge `j` (or of two hinges that share no vertex) on the signed
+/// dihedral angle. False if it was left undone: one of a pair needs the rare path (a
+/// degenerate hinge, or an angle error too large for the series), so each must be
+/// projected alone. The signed-angle gradients are adapted from MIT-licensed
 /// PositionBasedDynamics; see THIRD_PARTY.md.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn hinge<T: Lanes>(x: *mut f64, w: *const f64, ids: *const i32, target_sin: *const f64, target_cos: *const f64, alpha: *const f64, lambda: *mut f64, j: T::Idx) -> bool {
+    let (i0, i1, i2, i3) = (T::id(ids, j, 4, 0), T::id(ids, j, 4, 1), T::id(ids, j, 4, 2), T::id(ids, j, 4, 3));
+    let (ax, ay, az, bx, by, bz) = (T::get(x, i0, 3, 0), T::get(x, i0, 3, 1), T::get(x, i0, 3, 2), T::get(x, i1, 3, 0), T::get(x, i1, 3, 1), T::get(x, i1, 3, 2));
+    let (cx, cy, cz, dx, dy, dz) = (T::get(x, i2, 3, 0), T::get(x, i2, 3, 1), T::get(x, i2, 3, 2), T::get(x, i3, 3, 0), T::get(x, i3, 3, 1), T::get(x, i3, 3, 2));
+    let (ex, ey, ez) = (dx - cx, dy - cy, dz - cz);
+    let ee = ex * ex + ey * ey + ez * ez;
+    let el = ee.sqrt();
+    let (ux, uy, uz, vx, vy, vz) = (cx - ax, cy - ay, cz - az, dx - ax, dy - ay, dz - az);
+    let (rx, ry, rz, sx, sy, sz) = (dx - bx, dy - by, dz - bz, cx - bx, cy - by, cz - bz);
+    let (n1x, n1y, n1z) = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+    let (n2x, n2y, n2z) = (ry * sz - rz * sy, rz * sx - rx * sz, rx * sy - ry * sx);
+    let sq1 = n1x * n1x + n1y * n1y + n1z * n1z;
+    let sq2 = n2x * n2x + n2y * n2y + n2z * n2z;
+    if T::any(el.lt(T::splat(1e-10)) | sq1.lt(T::splat(1e-18)) | sq2.lt(T::splat(1e-18))) { return !T::PAIR; }
+    let one = T::splat(1.0);
+    let (inverse_el, inverse1, inverse2) = (one / el, one / sq1, one / sq2);
+    let sin = ((n1y * n2z - n1z * n2y) * ex + (n1z * n2x - n1x * n2z) * ey + (n1x * n2y - n1y * n2x) * ez) * inverse_el;
+    let cos = n1x * n2x + n1y * n2y + n1z * n2z;
+    let (st, ct) = (T::get(target_sin, j, 1, 0), T::get(target_cos, j, 1, 0));
+    // Angle error from the rotated (sin, cos) pair: already wrapped, and for
+    // the usual small error a short odd series replaces atan2 (error < 1e-12).
+    let y = sin * ct - cos * st;
+    let z = cos * ct + sin * st;
+    let cval = if T::all(z.gt(T::splat(0.0)) & y.abs().lt(T::splat(0.1) * z)) {
+        let t = y / z;
+        let q = t * t;
+        t * (one - q * (T::splat(1.0 / 3.0) - q * (T::splat(1.0 / 5.0) - q * (T::splat(1.0 / 7.0) - q * T::splat(1.0 / 9.0)))))
+    } else {
+        if T::PAIR { return false; }
+        y.atan2(z)
+    };
+    // The wing vertices' gradients are the face normals scaled by −|e|/|n|², so their
+    // squared lengths are |e|²/|n|²; the edge vertices' are combinations of the two.
+    let (n1x, n1y, n1z, n2x, n2y, n2z) = (n1x * inverse1, n1y * inverse1, n1z * inverse1, n2x * inverse2, n2y * inverse2, n2z * inverse2);
+    let (g0x, g0y, g0z, g1x, g1y, g1z) = (-el * n1x, -el * n1y, -el * n1z, -el * n2x, -el * n2y, -el * n2z);
+    let k2 = (vx * ex + vy * ey + vz * ez) * inverse_el;
+    let l2 = (rx * ex + ry * ey + rz * ez) * inverse_el;
+    let k3 = -(ux * ex + uy * ey + uz * ez) * inverse_el;
+    let l3 = -(sx * ex + sy * ey + sz * ez) * inverse_el;
+    let (g2x, g2y, g2z) = (k2 * n1x + l2 * n2x, k2 * n1y + l2 * n2y, k2 * n1z + l2 * n2z);
+    let (g3x, g3y, g3z) = (k3 * n1x + l3 * n2x, k3 * n1y + l3 * n2y, k3 * n1z + l3 * n2z);
+    let stiffness = T::get(alpha, j, 1, 0);
+    let (m0, m1, m2, m3) = (T::get(w, i0, 1, 0), T::get(w, i1, 1, 0), T::get(w, i2, 1, 0), T::get(w, i3, 1, 0));
+    let denom = stiffness + m0 * (ee * inverse1) + m1 * (ee * inverse2) + m2 * (g2x * g2x + g2y * g2y + g2z * g2z) + m3 * (g3x * g3x + g3y * g3y + g3z * g3z);
+    let multiplier = T::get(lambda, j, 1, 0);
+    let dl = (-cval - stiffness * multiplier) / denom;
+    (multiplier + dl).set(lambda, j, 1, 0);
+    let (w0, w1, w2, w3) = (m0 * dl, m1 * dl, m2 * dl, m3 * dl);
+    (ax + w0 * g0x).set(x, i0, 3, 0); (ay + w0 * g0y).set(x, i0, 3, 1); (az + w0 * g0z).set(x, i0, 3, 2);
+    (bx + w1 * g1x).set(x, i1, 3, 0); (by + w1 * g1y).set(x, i1, 3, 1); (bz + w1 * g1z).set(x, i1, 3, 2);
+    (cx + w2 * g2x).set(x, i2, 3, 0); (cy + w2 * g2y).set(x, i2, 3, 1); (cz + w2 * g2z).set(x, i2, 3, 2);
+    (dx + w3 * g3x).set(x, i3, 3, 0); (dy + w3 * g3y).set(x, i3, 3, 1); (dz + w3 * g3z).set(x, i3, 3, 2);
+    true
+}
+
+/// One XPBD sweep over every hinge, in an order equivalent to index order (reversed when
+/// not `forward`), two independent hinges at a time where the mesh allows. `alpha` is
+/// compliance/dt² per hinge.
 pub fn solve_hinges(x: &mut [f64], w: &[f64], batch: &mut HingeBatch, forward: bool) {
-    let count = batch.lambda.len();
-    let (ids, target_sin, target_cos, alpha) = (R(&batch.ids), R(&batch.target_sin), R(&batch.target_cos), R(&batch.alpha));
-    let mut lambda = W(&mut batch.lambda);
-    let mut x = W(x);
-    let w = R(w);
-    for k in 0..count {
-        let j = if forward { k } else { count - 1 - k };
-        let (i0, i1, i2, i3) = (ids[4 * j] as usize, ids[4 * j + 1] as usize, ids[4 * j + 2] as usize, ids[4 * j + 3] as usize);
-        let (a, b, c, d) = (3 * i0, 3 * i1, 3 * i2, 3 * i3);
-        let (ax, ay, az, bx, by, bz) = (x[a], x[a + 1], x[a + 2], x[b], x[b + 1], x[b + 2]);
-        let (cx, cy, cz, dx, dy, dz) = (x[c], x[c + 1], x[c + 2], x[d], x[d + 1], x[d + 2]);
-        let (ex, ey, ez) = (dx - cx, dy - cy, dz - cz);
-        let el = (ex * ex + ey * ey + ez * ez).sqrt();
-        let (ux, uy, uz, vx, vy, vz) = (cx - ax, cy - ay, cz - az, dx - ax, dy - ay, dz - az);
-        let (rx, ry, rz, sx, sy, sz) = (dx - bx, dy - by, dz - bz, cx - bx, cy - by, cz - bz);
-        let (mut n1x, mut n1y, mut n1z) = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
-        let (mut n2x, mut n2y, mut n2z) = (ry * sz - rz * sy, rz * sx - rx * sz, rx * sy - ry * sx);
-        let sq1 = n1x * n1x + n1y * n1y + n1z * n1z;
-        let sq2 = n2x * n2x + n2y * n2y + n2z * n2z;
-        if el < 1e-10 || sq1 < 1e-18 || sq2 < 1e-18 { continue; }
-        let sin = ((n1y * n2z - n1z * n2y) * ex + (n1z * n2x - n1x * n2z) * ey + (n1x * n2y - n1y * n2x) * ez) / el;
-        let cos = n1x * n2x + n1y * n2y + n1z * n2z;
-        let (st, ct) = (target_sin[j], target_cos[j]);
-        // Angle error from the rotated (sin, cos) pair: already wrapped, and for
-        // the usual small error a short odd series replaces atan2 (error < 1e-12).
-        let y = sin * ct - cos * st;
-        let z = cos * ct + sin * st;
-        let cval = if z > 0.0 && y.abs() < 0.1 * z {
-            let t = y / z;
-            let q = t * t;
-            t * (1.0 - q * (1.0 / 3.0 - q * (1.0 / 5.0 - q * (1.0 / 7.0 - q / 9.0))))
-        } else {
-            y.atan2(z)
-        };
-        n1x /= sq1; n1y /= sq1; n1z /= sq1; n2x /= sq2; n2y /= sq2; n2z /= sq2;
-        let (g0x, g0y, g0z, g1x, g1y, g1z) = (-el * n1x, -el * n1y, -el * n1z, -el * n2x, -el * n2y, -el * n2z);
-        let k2 = (vx * ex + vy * ey + vz * ez) / el;
-        let l2 = (rx * ex + ry * ey + rz * ez) / el;
-        let k3 = -(ux * ex + uy * ey + uz * ez) / el;
-        let l3 = -(sx * ex + sy * ey + sz * ez) / el;
-        let (g2x, g2y, g2z) = (k2 * n1x + l2 * n2x, k2 * n1y + l2 * n2y, k2 * n1z + l2 * n2z);
-        let (g3x, g3y, g3z) = (k3 * n1x + l3 * n2x, k3 * n1y + l3 * n2y, k3 * n1z + l3 * n2z);
-        let stiffness = alpha[j];
-        let denom = stiffness + w[i0] * (g0x * g0x + g0y * g0y + g0z * g0z) + w[i1] * (g1x * g1x + g1y * g1y + g1z * g1z) + w[i2] * (g2x * g2x + g2y * g2y + g2z * g2z) + w[i3] * (g3x * g3x + g3y * g3y + g3z * g3z);
-        let dl = (-cval - stiffness * lambda[j]) / denom;
-        lambda[j] += dl;
-        let (w0, w1, w2, w3) = (w[i0] * dl, w[i1] * dl, w[i2] * dl, w[i3] * dl);
-        x[a] = ax + w0 * g0x; x[a + 1] = ay + w0 * g0y; x[a + 2] = az + w0 * g0z;
-        x[b] = bx + w1 * g1x; x[b + 1] = by + w1 * g1y; x[b + 2] = bz + w1 * g1z;
-        x[c] = cx + w2 * g2x; x[c + 1] = cy + w2 * g2y; x[c + 2] = cz + w2 * g2z;
-        x[d] = dx + w3 * g3x; x[d + 1] = dy + w3 * g3y; x[d + 2] = dz + w3 * g3z;
+    let slots = batch.order.len() / 2;
+    let order = R(&batch.order);
+    let (x, w, ids, target_sin, target_cos, alpha, lambda) = (x.as_mut_ptr(), w.as_ptr(), batch.ids.as_ptr(), batch.target_sin.as_ptr(), batch.target_cos.as_ptr(), batch.alpha.as_ptr(), batch.lambda.as_mut_ptr());
+    for k in 0..slots {
+        let s = 2 * if forward { k } else { slots - 1 - k };
+        let (first, second) = (order[s] as usize, order[s + 1]);
+        // Indices come from the mesh set-up and are in range by construction.
+        unsafe {
+            if second < 0 {
+                hinge::<f64>(x, w, ids, target_sin, target_cos, alpha, lambda, first);
+            } else if !hinge::<F2>(x, w, ids, target_sin, target_cos, alpha, lambda, [first, second as usize]) {
+                hinge::<f64>(x, w, ids, target_sin, target_cos, alpha, lambda, first);
+                hinge::<f64>(x, w, ids, target_sin, target_cos, alpha, lambda, second as usize);
+            }
+        }
     }
 }
 

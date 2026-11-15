@@ -10,7 +10,7 @@ npm run benchmark:realtime # simulated seconds per wall-clock second, per design
 npm run benchmark:stages   # where the solver's time goes, by stage
 ```
 
-`npm run dev`, `npm run build` and the `npm test` scripts build the solver first, so a Rust toolchain is needed to work on the game: install one from [rustup.rs](https://rustup.rs) and run `rustup target add wasm32-unknown-unknown`. The crate has no dependencies and builds in a few seconds. `src/physics/solver.wasm` is a build product and is not committed.
+`npm run dev`, `npm run build` and the `npm test` scripts build the solver first, so a Rust toolchain is needed to work on the game: install one from [rustup.rs](https://rustup.rs) and run `rustup target add wasm32-unknown-unknown`. The crate has no dependencies and builds in a few seconds; `wasm/build.mjs` runs cargo from the crate's directory so that `wasm/solver/.cargo/config.toml`, which turns on WebAssembly's SIMD, applies. `src/physics/solver.wasm` is a build product and is not committed.
 
 ## Where the line is
 
@@ -92,11 +92,62 @@ Where the time goes (`npm run benchmark:stages`), in milliseconds of solver time
 - **Outside the solver** is what `Simulation.step` spends copying state in and out each substep: about 1% of the total.
 - **Against TypeScript**, measured during the port on three designs with a sampling profiler on the TypeScript side: air loads, contact detection and the elastic solve gained about 2×, while the membrane, hinge and strain sweeps gained about 1.1×. They are tight sequential arithmetic that the JavaScript engine already compiled well, and they are now a quarter to over half of the time. Self-contact is the largest stage on the layered designs, mostly its narrow phase over cached pair lists.
 - **Download.** The page's script fell from 63 to 49 kB gzipped and the worker's from 65 to 33 kB uncompressed; `solver.wasm` adds 69 kB gzipped, fetched once and shared by both.
-- **Not tried or not helpful.** Building with `+simd128` was within 1% of scalar: the kernels are gathers and sequential Gauss–Seidel, which do not vectorise by themselves. Threads were not tried. They need `SharedArrayBuffer`, so cross-origin isolation, which GitHub Pages cannot provide without a service-worker shim, and within a step only detection and air loads are naturally parallel.
+- **Not tried or not helpful.** Building with `+simd128` alone was within 1% of scalar: the kernels are gathers and sequential Gauss–Seidel, which do not vectorise by themselves. (They do once reordered: see [Faster kernels](#faster-kernels-2026-11-15).) Threads were not tried. They need `SharedArrayBuffer`, so cross-origin isolation, which GitHub Pages cannot provide without a service-worker shim, and within a step only detection and air loads are naturally parallel.
 
 ## Limits
 
-- Browser runs were in headless Chrome only. Firefox and Safari were not run; both need module workers (Firefox 114, Safari 15).
+- Browser runs were in headless Chrome only. Firefox and Safari were not run; both need module workers and WebAssembly's fixed-width SIMD (Firefox 114, Safari 16.4).
 - A failed download of `solver.wasm` stops the page's script, as a failed script download would. The worker reports it as a flight error.
 - Parameters are read when a flight's first step is taken. Changing `parameters` in the middle of a flight has no effect until the next launch; nothing in the game does that.
 - The unit tests of single kernels copy their arguments in and out on every call. That is fine for tests and for the replay inspector, and is not how flights are stepped.
+
+## Faster kernels (2026-11-15)
+
+Same machine. The solver is about 1.5 times faster over whole flights: 1.7 times in the air and 1.4 times after touchdown, from 1.2 times (V-Wing) to 2.0 times (Original dart) by design. Solver time per simulated second, in milliseconds, summed over launches at 5.5, 6 and 6.5 m/s, with the solver as first ported to WebAssembly and this one run back to back for each design:
+
+| Design | In the air | After touchdown | Whole flight | Real-time ratio |
+| --- | --- | --- | --- | --- |
+| Original dart | 102 → 52 (1.98×) | 192 → 94 (2.03×) | 140 → 70 (2.00×) | 7.2 → 14.3 |
+| The Basic | 288 → 141 (2.04×) | 344 → 223 (1.54×) | 315 → 183 (1.73×) | 3.2 → 5.5 |
+| Folded Dart | 607 → 383 (1.58×) | 909 → 763 (1.19×) | 799 → 614 (1.30×) | 1.25 → 1.63 |
+| The Stable | 433 → 284 (1.53×) | 444 → 333 (1.33×) | 441 → 319 (1.38×) | 2.3 → 3.1 |
+| Heavy Nose | 593 → 345 (1.72×) | 1096 → 941 (1.16×) | 948 → 737 (1.29×) | 1.06 → 1.36 |
+| Hunting | 431 → 244 (1.76×) | 559 → 394 (1.42×) | 531 → 356 (1.49×) | 1.9 → 2.8 |
+| The Buzz | 1552 → 941 (1.65×) | 2314 → 1188 (1.95×) | 2114 → 1163 (1.82×) | 0.47 → 0.86 |
+| V-Wing | 390 → 259 (1.50×) | 392 → 352 (1.11×) | 391 → 329 (1.19×) | 2.6 → 3.0 |
+| Underside | 429 → 259 (1.65×) | 589 → 413 (1.43×) | 520 → 354 (1.47×) | 1.9 → 2.8 |
+| Raven | 1238 → 882 (1.40×) | 1954 → 1598 (1.22×) | 1711 → 1364 (1.25×) | 0.58 → 0.73 |
+| Geometric mean | 1.67× | 1.41× | 1.47× | |
+
+Landings differ between the two solvers, so one flight's ground phase is not like for like; that is why three launches are summed. Timings move by about 5% between runs, more on a busy machine. The Buzz and Raven are still slower than real time.
+
+**What changed, in three steps.**
+
+1. *Same arithmetic, same results.* Twenty flights (the ten designs at the default launch, and ten variants covering tissue, foil, weather, an instant launch, bonded layers, sweeps alone, the per-face air loads and explicit substeps) were bit for bit identical to the previous solver, every frame, after each of these:
+   - The membrane and hinge sweeps visit constraints in an order that gives the same result as index order (two constraints that share no vertex commute) but puts independent constraints next to each other, and projects two at a time with WebAssembly's 128-bit SIMD (`wasm/solver/src/lanes.rs`). In index order nearly every constraint waits for its predecessor's result. This halves the sweeps where the mesh order allows; Folded Dart and V-Wing are numbered along strips, which leaves long chains and a smaller gain.
+   - The self-contact narrow phase lists the pairs whose swept bounds overlap without branching, then tests two pairs at once; about nine in ten stay clear and need nothing more.
+   - The vortex lattice builds its influence matrix and eliminates two columns at a time.
+2. *Same algorithm, different rounding.* Flights drift from the previous solver's at rounding level (the Original dart by a few 10⁻¹² m after half a second) and, on layered designs, diverge as flights always do under small changes.
+   - The elastic solve factorises the matrix as 3×3 blocks, one per vertex pair, instead of by scalar. A solve now converges to 0.1 pm where it used to stall between 0.5 and 1 pm. The factorisation was the largest single cost on lightly layered designs in the air.
+   - The membrane and hinge kernels take their denominators from u·u, u·v and v·v and from the face normals' lengths instead of forming every gradient, and the hinge kernel divides five times instead of fourteen.
+3. *One schedule change.* After a direct elastic solve the sweeps run a quarter of `iterations` (6 sweeps, 5 during the launch stroke), not half. They only reconcile contact there, and the measurements below do not distinguish 12, 9 and 6.
+
+**Checks.** `npm run test:full` passes all 221 tests and `npm run test:reference` all 15. Against the [reference solver](reference-solver.md): mean range error 1.4%, worst 3.2% (before: 1.4% and 3%); mean separation at 0.5 s 1.5 cm (unchanged). Over 30 launches (ten designs at 5.5, 6 and 6.5 m/s), using `tests/fixtures/intersections.ts` every sixth frame:
+
+| | Before | Now |
+| --- | ---: | ---: |
+| Peak transverse penetration in the air, mean | 0.23 mm | 0.28 mm |
+| Peak transverse penetration after touchdown, mean | 1.59 mm | 1.26 mm |
+| Worst edge strain in the air | 0.9% | 1.2% |
+| Worst edge strain after touchdown, Underside excluded | 8.9% | 6.8% |
+| Flights that settle rather than time out | 26 | 27 |
+
+Mean range per design is within 3 cm of before. Tissue at 11 m/s in gusts and turbulence (Folded Dart, The Stable, Heavy Nose; 12 against 6 sweeps on one build): penetration in the air 0.29 against 0.31 mm, worst strain 0.3% against 0.4%. Underside's edges stretch many times over for a moment after touchdown at all three speeds, before and after alike (worst 17×); that is a fault in its landing, not something these changes introduced or fixed.
+
+**Tried and left out.**
+- Reordering the contact projections, or checking two separated contacts at once, gave nothing: those loops are bound by how many contacts they visit, about nine in ten of them separated, not by arithmetic or by dependency.
+- Skipping contacts none of whose vertices had moved since their last projection saved nothing either. Enough contacts act in every pass to touch nearly every vertex.
+- Dropping the early swept detection on small meshes was 15–25% faster on four designs and left penetration unchanged, but made Underside's landing strain on tissue several times larger.
+- Interleaving the hinge sweep with the membrane sweep (which also keeps the result) did not shorten Folded Dart's or V-Wing's chains measurably.
+
+No browser run was made for this change. The solver now needs WebAssembly SIMD, which raises the Safari floor from 15 to 16.4, and `solver.wasm` is 77 kB gzipped, up from 69.

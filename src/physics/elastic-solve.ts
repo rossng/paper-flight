@@ -13,15 +13,15 @@ import { kernel, F64, I32 } from './solver';
  * hands the sweeps positions and multipliers that already satisfy every elastic constraint,
  * so they only have to reconcile contact.
  *
- * This class computes the symbolic set-up (ordering, pattern, elimination tree); the
- * numerical solve is the flight solver's (wasm/solver/src/elastic.rs). */
+ * This class computes the vertex ordering and the matrix's block pattern; the factor's
+ * pattern and the numerical solve are the flight solver's (wasm/solver/src/elastic.rs). */
 export class ElasticSolver {
   private n:number; private handle=0;
-  /** Fill-reducing vertex ordering, and the permuted matrix's upper triangle by scalar
-   * column (`ap`, `ai`), each entry's place in the 3×3 vertex blocks (`source`). */
+  /** Fill-reducing vertex ordering, and the permuted matrix's upper triangle by vertex
+   * column (`ap`, `ai`), a 3×3 block per entry at offset `source` in the block array. */
   readonly perm:Int32Array; readonly source:Int32Array; readonly ap:Int32Array; readonly ai:Int32Array;
-  /** Length of the block array, the elimination tree and the factor's column pointers. */
-  readonly blocks:number; readonly parent:Int32Array; readonly lp:Int32Array;
+  /** Length of the block array. */
+  readonly blocks:number;
   /** Block offset of each vertex's diagonal and of each element's vertex pairs. */
   readonly diagonal:Int32Array; readonly faceSlots:Int32Array; readonly hingeSlots:Int32Array;
   constructor(count:number,faces:Face[],hinges:{ids:number[]}[]){
@@ -37,27 +37,14 @@ export class ElasticSolver {
       const rows=[...new Set(column)].sort((a,b)=>a-b);columns[j]=rows;
       for(const i of rows)slots.set(i*count+j,blockCount++);
     });
-    // Upper triangle of the permuted matrix, by scalar column.
-    const size=3*count,ap=this.ap=new Int32Array(size+1),ai:number[]=[],source:number[]=[];
-    for(let j=0;j<count;j++)for(let b=0;b<3;b++){
-      for(const i of columns[j]){
-        const block=9*slots.get(i*count+j)!;
-        if(i<j)for(let a=0;a<3;a++){ai.push(3*i+a);source.push(block+3*a+b);}
-        else for(let a=0;a<=b;a++){ai.push(3*j+a);source.push(block+3*a+b);}
-      }
-      ap[3*j+b+1]=ai.length;
+    // Upper triangle of the permuted matrix by vertex column, a 3×3 block per entry; rows
+    // ascend, so a column's last block is its diagonal.
+    const ap=this.ap=new Int32Array(count+1),ai:number[]=[],source:number[]=[];
+    for(let j=0;j<count;j++){
+      for(const i of columns[j]){ai.push(i);source.push(9*slots.get(i*count+j)!);}
+      ap[j+1]=ai.length;
     }
     this.ai=Int32Array.from(ai);this.source=Int32Array.from(source);this.blocks=9*blockCount;
-    // Elimination tree and column counts.
-    const parent=this.parent=new Int32Array(size).fill(-1),lnz=new Int32Array(size),flag=new Int32Array(size);
-    for(let k=0;k<size;k++){
-      flag[k]=k;
-      for(let p=ap[k];p<ap[k+1];p++){
-        let i=this.ai[p];
-        if(i<k)for(;flag[i]!==k;i=parent[i]){if(parent[i]===-1)parent[i]=k;lnz[i]++;flag[i]=k;}
-      }
-    }
-    const lp=this.lp=new Int32Array(size+1);for(let k=0;k<size;k++)lp[k+1]=lp[k]+lnz[k];
     // Where each element's vertex pairs land: block offset, negative (as ~offset) when the
     // pair is stored transposed.
     const slot=(i:number,j:number)=>{const a=perm[i],b=perm[j];return a<=b?9*slots.get(a*count+b)!:~(9*slots.get(b*count+a)!);};
@@ -67,7 +54,7 @@ export class ElasticSolver {
   }
   /** Hand the symbolic set-up to a solver kernel's staging slots. */
   stage(){
-    kernel.i32(I32.perm,this.perm);kernel.i32(I32.ap,this.ap);kernel.i32(I32.ai,this.ai);kernel.i32(I32.source,this.source);kernel.i32(I32.parent,this.parent);kernel.i32(I32.lp,this.lp);
+    kernel.i32(I32.perm,this.perm);kernel.i32(I32.ap,this.ap);kernel.i32(I32.ai,this.ai);kernel.i32(I32.source,this.source);
     kernel.i32(I32.diagonal,this.diagonal);kernel.i32(I32.faceSlots,this.faceSlots);kernel.i32(I32.hingeSlots,this.hingeSlots);
   }
   /** Replace `x` (the unconstrained prediction) with the elastic implicit-Euler solution

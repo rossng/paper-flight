@@ -4,6 +4,7 @@
 //! one-ring adjacency are built in TypeScript (src/physics/) and passed in.
 use crate::fast::{R, W};
 use crate::js;
+use crate::lanes::{Lanes, F2};
 
 /// Features closer than this (metres) count as touching; also the padding of swept bounds.
 const GAP_EPS: f64 = 1e-9;
@@ -211,6 +212,53 @@ fn inside(o: &[f64], p: &[f64], t: f64, i0: usize, i1: usize, i2: usize, i3: usi
     u >= -PARAM_EPS && v >= -PARAM_EPS && (if vf { u + v <= 1.0 + PARAM_EPS } else { u <= 1.0 + PARAM_EPS && v <= 1.0 + PARAM_EPS })
 }
 
+/// Coplanarity cubic a + b t + c t² + d t³ of four linearly moving vertices between `o`
+/// (t = 0) and `p` (t = 1), and the squared normal at t = 0. The vertices are given by
+/// role: the cubic is r · (e × f) with r = ia − ib, e = ic − ie and f = jf − ib.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn coplanarity<T: Lanes>(o: *const f64, p: *const f64, ia: T::Idx, ib: T::Idx, ic: T::Idx, ie: T::Idx, jf: T::Idx) -> (T, T, T, T, T) {
+    let at = |s: *const f64, i: T::Idx, d: usize| T::get(s, i, 3, d);
+    let (rx, ry, rz) = (at(o, ia, 0) - at(o, ib, 0), at(o, ia, 1) - at(o, ib, 1), at(o, ia, 2) - at(o, ib, 2));
+    let (ex, ey, ez) = (at(o, ic, 0) - at(o, ie, 0), at(o, ic, 1) - at(o, ie, 1), at(o, ic, 2) - at(o, ie, 2));
+    let (fx, fy, fz) = (at(o, jf, 0) - at(o, ib, 0), at(o, jf, 1) - at(o, ib, 1), at(o, jf, 2) - at(o, ib, 2));
+    let (drx, dry, drz) = (at(p, ia, 0) - at(p, ib, 0) - rx, at(p, ia, 1) - at(p, ib, 1) - ry, at(p, ia, 2) - at(p, ib, 2) - rz);
+    let (dex, dey, dez) = (at(p, ic, 0) - at(p, ie, 0) - ex, at(p, ic, 1) - at(p, ie, 1) - ey, at(p, ic, 2) - at(p, ie, 2) - ez);
+    let (dfx, dfy, dfz) = (at(p, jf, 0) - at(p, ib, 0) - fx, at(p, jf, 1) - at(p, ib, 1) - fy, at(p, jf, 2) - at(p, ib, 2) - fz);
+    let (nx, ny, nz) = (ey * fz - ez * fy, ez * fx - ex * fz, ex * fy - ey * fx);
+    let mx = dey * fz - dez * fy + ey * dfz - ez * dfy;
+    let my = dez * fx - dex * fz + ez * dfx - ex * dfz;
+    let mz = dex * fy - dey * fx + ex * dfy - ey * dfx;
+    let (qx, qy, qz) = (dey * dfz - dez * dfy, dez * dfx - dex * dfz, dex * dfy - dey * dfx);
+    let a = rx * nx + ry * ny + rz * nz;
+    let b = drx * nx + dry * ny + drz * nz + rx * mx + ry * my + rz * mz;
+    let c = drx * mx + dry * my + drz * mz + rx * qx + ry * qy + rz * qz;
+    let d = drx * qx + dry * qy + drz * qz;
+    let nn = nx * nx + ny * ny + nz * nz;
+    (a, b, c, d, nn)
+}
+/// Whether the cubic keeps one sign over the step (by its Bernstein convex hull: all four
+/// control values on one side exclude a root), and whether the features touch at its start.
+#[inline(always)]
+fn clearance<T: Lanes>(a: T, b: T, c: T, d: T, nn: T) -> (T::Mask, T::Mask) {
+    let (zero, three) = (T::splat(0.0), T::splat(3.0));
+    let b1 = a + b / three;
+    let b2 = a + T::splat(2.0) * b / three + c / three;
+    let b3 = a + b + c + d;
+    let same_sign = (a.gt(zero) & b1.gt(zero) & b2.gt(zero) & b3.gt(zero)) | (a.lt(zero) & b1.lt(zero) & b2.lt(zero) & b3.lt(zero));
+    let touching = nn.gt(T::splat(1e-24)) & (a * a).le(T::splat(GAP_EPS * GAP_EPS) * nn);
+    (same_sign, touching)
+}
+/// Whether two feature pairs both stay on one side without touching, which is all the
+/// narrow phase needs to know about nearly every pair.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn both_clear(o: *const f64, p: *const f64, ia: [usize; 2], ib: [usize; 2], ic: [usize; 2], ie: [usize; 2], jf: [usize; 2]) -> bool {
+    let (a, b, c, d, nn) = coplanarity::<F2>(o, p, ia, ib, ic, ie, jf);
+    let (same_sign, touching) = clearance::<F2>(a, b, c, d, nn);
+    F2::all(same_sign & !touching)
+}
+
 /// Self-contact detection and projection state for one mesh.
 pub struct SelfContact {
     /// Flat one-ring adjacency bitset: `words` 32-bit words per vertex. The broad phase
@@ -242,6 +290,10 @@ pub struct SelfContact {
     high: Vec<f64>,
     face_boxes: Vec<f64>,
     edge_boxes: Vec<f64>,
+    /// Each vertex's swept bounds padded by GAP_EPS: low xyz, then high xyz.
+    vertex_boxes: Vec<f64>,
+    /// Listed pairs whose swept bounds overlap this substep.
+    candidates: Vec<i32>,
     /// Broad-phase pair lists, in BVH visit order, built from bounds padded by
     /// PAIR_MARGIN. They remain a superset of every overlapping pair until some
     /// vertex drifts that far from `reference` in the mean-translating frame.
@@ -282,6 +334,8 @@ impl SelfContact {
             high: vec![0.0; vertices * 3],
             face_boxes: vec![0.0; face_count * 6],
             edge_boxes: vec![0.0; edge_count * 6],
+            vertex_boxes: vec![0.0; vertices * 6],
+            candidates: Vec::new(),
             reference: vec![0.0; vertices * 3],
             pairs_valid: false,
             vf_pairs: Vec::new(),
@@ -396,38 +450,12 @@ impl SelfContact {
     /// step, or touches now and was in contact in the previous substep.
     #[allow(clippy::too_many_arguments)]
     fn test(&mut self, o_slice: &[f64], p_slice: &[f64], i0: usize, i1: usize, i2: usize, i3: usize, vf: bool, key: usize) {
-        self.stats[0] += 1.0;
         // Cubic coplanarity polynomial of the linearly moving features.
-        let (o, p) = (R(o_slice), R(p_slice));
-        let ia = 3 * i0;
-        let ib = 3 * if vf { i1 } else { i2 };
-        let ic = 3 * if vf { i2 } else { i1 };
-        let ie = 3 * if vf { i1 } else { i0 };
-        let jf = 3 * i3;
-        let (rx, ry, rz) = (o[ia] - o[ib], o[ia + 1] - o[ib + 1], o[ia + 2] - o[ib + 2]);
-        let (ex, ey, ez) = (o[ic] - o[ie], o[ic + 1] - o[ie + 1], o[ic + 2] - o[ie + 2]);
-        let (fx, fy, fz) = (o[jf] - o[ib], o[jf + 1] - o[ib + 1], o[jf + 2] - o[ib + 2]);
-        let (drx, dry, drz) = (p[ia] - p[ib] - rx, p[ia + 1] - p[ib + 1] - ry, p[ia + 2] - p[ib + 2] - rz);
-        let (dex, dey, dez) = (p[ic] - p[ie] - ex, p[ic + 1] - p[ie + 1] - ey, p[ic + 2] - p[ie + 2] - ez);
-        let (dfx, dfy, dfz) = (p[jf] - p[ib] - fx, p[jf + 1] - p[ib + 1] - fy, p[jf + 2] - p[ib + 2] - fz);
-        let (nx, ny, nz) = (ey * fz - ez * fy, ez * fx - ex * fz, ex * fy - ey * fx);
-        let mx = dey * fz - dez * fy + ey * dfz - ez * dfy;
-        let my = dez * fx - dex * fz + ez * dfx - ex * dfz;
-        let mz = dex * fy - dey * fx + ex * dfy - ey * dfx;
-        let (qx, qy, qz) = (dey * dfz - dez * dfy, dez * dfx - dex * dfz, dex * dfy - dey * dfx);
-        let a = rx * nx + ry * ny + rz * nz;
-        let b = drx * nx + dry * ny + drz * nz + rx * mx + ry * my + rz * mz;
-        let c = drx * mx + dry * my + drz * mz + rx * qx + ry * qy + rz * qz;
-        let d = drx * qx + dry * qy + drz * qz;
-        let nn = nx * nx + ny * ny + nz * nz;
-        // Bernstein convex hull: all four same-sign control values exclude roots.
-        let b1 = a + b / 3.0;
-        let b2 = a + 2.0 * b / 3.0 + c / 3.0;
-        let b3 = a + b + c + d;
-        let same_sign = (a > 0.0 && b1 > 0.0 && b2 > 0.0 && b3 > 0.0) || (a < 0.0 && b1 < 0.0 && b2 < 0.0 && b3 < 0.0);
+        let (r0, r1, r2, r3, r4) = if vf { (i0, i1, i2, i1, i3) } else { (i0, i2, i1, i0, i3) };
+        let (a, b, c, d, nn) = unsafe { coplanarity::<f64>(o_slice.as_ptr(), p_slice.as_ptr(), r0, r1, r2, r3, r4) };
         // Nearly every pair stays on one side without touching: decide that before
         // reading the (cache-unfriendly) per-pair history.
-        let touching = nn > 1e-24 && a * a <= GAP_EPS * GAP_EPS * nn;
+        let (same_sign, touching) = clearance::<f64>(a, b, c, d, nn);
         if same_sign && !touching { return; }
         if R(&self.active_flag)[key] != 0 { return; }
         let prior = if touching { R(&self.previous_sign)[key] } else { 0 };
@@ -502,6 +530,9 @@ impl SelfContact {
                 high[k] = js::max(o[k], p[k] - mx);
                 high[k + 1] = js::max(o[k + 1], p[k + 1] - my);
                 high[k + 2] = js::max(o[k + 2], p[k + 2] - mz);
+                let b = &mut self.vertex_boxes[2 * k..2 * k + 6];
+                b[0] = low[k] - GAP_EPS; b[1] = low[k + 1] - GAP_EPS; b[2] = low[k + 2] - GAP_EPS;
+                b[3] = high[k] + GAP_EPS; b[4] = high[k + 1] + GAP_EPS; b[5] = high[k + 2] + GAP_EPS;
                 k += 3;
             }
         }
@@ -533,32 +564,79 @@ impl SelfContact {
         let t1 = crate::profile_now();
         if stale { self.build_pairs(o); }
         let t2 = crate::profile_now();
+        // The pair lists are a superset. Keep the pairs whose swept bounds overlap in this
+        // substep, without branching on a test that passes about half the time; then test
+        // them two at a time, since nearly all stay clear.
         let pair_count = self.vf_pairs.len() / 2;
-        for n in 0..pair_count {
-            let pairs = R(&self.vf_pairs);
-            let v = pairs[2 * n] as usize;
-            let fi = pairs[2 * n + 1] as usize;
-            let k = 3 * v;
-            let b = 6 * fi;
-            let (fb, low, high) = (R(&self.face_boxes), R(&self.low), R(&self.high));
-            if !(fb[b] <= high[k] + GAP_EPS && low[k] - GAP_EPS <= fb[b + 3] && fb[b + 1] <= high[k + 1] + GAP_EPS && low[k + 1] - GAP_EPS <= fb[b + 4] && fb[b + 2] <= high[k + 2] + GAP_EPS && low[k + 2] - GAP_EPS <= fb[b + 5]) { continue; }
-            let faces = R(&self.faces);
-            let (f0, f1, f2) = (faces[3 * fi] as usize, faces[3 * fi + 1] as usize, faces[3 * fi + 2] as usize);
-            self.test(o, p, v, f0, f1, f2, true, v * face_count + fi);
-        }
         let edge_pair_count = self.edge_pairs.len() / 2;
-        let base = count * face_count;
-        for n in 0..edge_pair_count {
-            let pairs = R(&self.edge_pairs);
-            let i = pairs[2 * n] as usize;
-            let j = pairs[2 * n + 1] as usize;
-            let (a, b) = (6 * i, 6 * j);
-            let eb = R(&self.edge_boxes);
-            if !(eb[b] <= eb[a + 3] && eb[a] <= eb[b + 3] && eb[b + 1] <= eb[a + 4] && eb[a + 1] <= eb[b + 4] && eb[b + 2] <= eb[a + 5] && eb[a + 2] <= eb[b + 5]) { continue; }
-            let edges = R(&self.edges);
-            let (e0, e1, e2, e3) = (edges[2 * i] as usize, edges[2 * i + 1] as usize, edges[2 * j] as usize, edges[2 * j + 1] as usize);
-            self.test(o, p, e0, e1, e2, e3, false, base + i * edge_count + j);
+        let mut candidates = std::mem::take(&mut self.candidates);
+        if candidates.len() < pair_count.max(edge_pair_count) { candidates.resize(pair_count.max(edge_pair_count), 0); }
+        let (op, pp) = (o.as_ptr(), p.as_ptr());
+        let mut found = 0;
+        {
+            let (pairs, fb, vb) = (R(&self.vf_pairs), R(&self.face_boxes), R(&self.vertex_boxes));
+            let mut list = W(&mut candidates);
+            for n in 0..pair_count {
+                let k = 6 * pairs[2 * n] as usize;
+                let b = 6 * pairs[2 * n + 1] as usize;
+                let overlap = (fb[b] <= vb[k + 3]) & (vb[k] <= fb[b + 3]) & (fb[b + 1] <= vb[k + 4]) & (vb[k + 1] <= fb[b + 4]) & (fb[b + 2] <= vb[k + 5]) & (vb[k + 2] <= fb[b + 5]);
+                list[found] = n as i32;
+                found += overlap as usize;
+            }
         }
+        self.stats[0] += found as f64;
+        let vertex_face = |this: &Self, n: usize| {
+            let (pairs, faces) = (R(&this.vf_pairs), R(&this.faces));
+            let (v, fi) = (pairs[2 * n] as usize, pairs[2 * n + 1] as usize);
+            (v, faces[3 * fi] as usize, faces[3 * fi + 1] as usize, faces[3 * fi + 2] as usize, v * face_count + fi)
+        };
+        let mut at = 0;
+        while at < found {
+            let (v, f0, f1, f2, key) = vertex_face(self, candidates[at] as usize);
+            if at + 1 < found {
+                let (v2, g0, g1, g2, key2) = vertex_face(self, candidates[at + 1] as usize);
+                if !unsafe { both_clear(op, pp, [v, v2], [f0, g0], [f1, g1], [f0, g0], [f2, g2]) } {
+                    self.test(o, p, v, f0, f1, f2, true, key);
+                    self.test(o, p, v2, g0, g1, g2, true, key2);
+                }
+            } else {
+                self.test(o, p, v, f0, f1, f2, true, key);
+            }
+            at += 2;
+        }
+        let base = count * face_count;
+        let mut found = 0;
+        {
+            let (pairs, eb) = (R(&self.edge_pairs), R(&self.edge_boxes));
+            let mut list = W(&mut candidates);
+            for n in 0..edge_pair_count {
+                let (a, b) = (6 * pairs[2 * n] as usize, 6 * pairs[2 * n + 1] as usize);
+                let overlap = (eb[b] <= eb[a + 3]) & (eb[a] <= eb[b + 3]) & (eb[b + 1] <= eb[a + 4]) & (eb[a + 1] <= eb[b + 4]) & (eb[b + 2] <= eb[a + 5]) & (eb[a + 2] <= eb[b + 5]);
+                list[found] = n as i32;
+                found += overlap as usize;
+            }
+        }
+        self.stats[0] += found as f64;
+        let edge_edge = |this: &Self, n: usize| {
+            let (pairs, edges) = (R(&this.edge_pairs), R(&this.edges));
+            let (i, j) = (pairs[2 * n] as usize, pairs[2 * n + 1] as usize);
+            (edges[2 * i] as usize, edges[2 * i + 1] as usize, edges[2 * j] as usize, edges[2 * j + 1] as usize, base + i * edge_count + j)
+        };
+        let mut at = 0;
+        while at < found {
+            let (e0, e1, e2, e3, key) = edge_edge(self, candidates[at] as usize);
+            if at + 1 < found {
+                let (g0, g1, g2, g3, key2) = edge_edge(self, candidates[at + 1] as usize);
+                if !unsafe { both_clear(op, pp, [e0, g0], [e2, g2], [e1, g1], [e0, g0], [e3, g3]) } {
+                    self.test(o, p, e0, e1, e2, e3, false, key);
+                    self.test(o, p, g0, g1, g2, g3, false, key2);
+                }
+            } else {
+                self.test(o, p, e0, e1, e2, e3, false, key);
+            }
+            at += 2;
+        }
+        self.candidates = candidates;
         if let (Some(t0), Some(t1), Some(t2), Some(t3)) = (t0, t1, t2, crate::profile_now()) {
             self.timing[0] += t1 - t0;
             self.timing[1] += t2 - t1;

@@ -13,6 +13,7 @@ mod fast;
 mod ground;
 mod js;
 mod kernels;
+mod lanes;
 mod layer;
 mod selfcontact;
 mod sweeps;
@@ -594,8 +595,7 @@ pub(crate) mod field {
     pub const AP: usize = 9;
     pub const AI: usize = 10;
     pub const SOURCE: usize = 11;
-    pub const PARENT: usize = 12;
-    pub const LP: usize = 13;
+    // 12 and 13 are free.
     pub const DIAGONAL: usize = 14;
     pub const FACE_SLOTS: usize = 15;
     pub const HINGE_SLOTS: usize = 16;
@@ -654,8 +654,8 @@ pub unsafe extern "C" fn sim_create() -> *mut Sim {
     let patch_panel = take_i(field::PATCH_PANEL);
     let face_owners = take_i(field::FACE_OWNERS);
     let elastic_setup = ElasticSetup {
-        perm: take_i(field::PERM), ap: take_i(field::AP), ai: take_i(field::AI), source: take_i(field::SOURCE), parent: take_i(field::PARENT),
-        lp: take_i(field::LP), diagonal: take_i(field::DIAGONAL), face_slots: take_i(field::FACE_SLOTS), hinge_slots: take_i(field::HINGE_SLOTS),
+        perm: take_i(field::PERM), ap: take_i(field::AP), ai: take_i(field::AI), source: take_i(field::SOURCE),
+        diagonal: take_i(field::DIAGONAL), face_slots: take_i(field::FACE_SLOTS), hinge_slots: take_i(field::HINGE_SLOTS),
         block_len: s[30] as usize,
     };
     let layer_setup = LayerSetup {
@@ -706,16 +706,13 @@ pub unsafe extern "C" fn sim_create() -> *mut Sim {
         w: vec![0.0; n],
         air: vec![0.0; 3 * n],
         sweep_start: vec![0.0; 3 * n],
-        hinges: HingeBatch {
-            ids: hinge_ids, rest: hinge_rest, offset: vec![f64::NAN; hinge_count], target_sin: vec![0.0; hinge_count], target_cos: vec![0.0; hinge_count],
-            alpha: vec![0.0; hinge_count], lambda: vec![0.0; hinge_count],
-        },
+        hinges: HingeBatch::new(hinge_ids, hinge_rest, vec![0.0; hinge_count], vec![0.0; hinge_count]),
         hinge_k,
         hinge_crease,
         plastic_offset: vec![0.0; hinge_count],
         plastic_accumulated: vec![0.0; hinge_count],
         edges: EdgeBatch { ids: edge_ids, rest: edge_rest },
-        membranes: MembraneBatch { faces: faces.clone(), md, cd, alpha: vec![0.0; 3 * face_count], lambda: vec![0.0; 3 * face_count] },
+        membranes: MembraneBatch::new(faces.clone(), md, cd, vec![0.0; 3 * face_count], vec![0.0; 3 * face_count]),
         membrane_area,
         elastic: ElasticSolver::new(n, elastic_setup),
         aero: Aero::new(surface),
