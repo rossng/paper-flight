@@ -22,7 +22,7 @@ options:
   --patch-area A          largest aerodynamic quadrature patch, m^2 (default 2.5e-5; 0 = one per clipped polygon)
   --contact-stiffness K   layer and floor penalty stiffness, N/m (default 2e4)
   --after-touchdown S     seconds to simulate after touchdown (default 0; negative = until rest)
-  --max-time S            stop an airborne flight after S seconds (default 12)
+  --max-time S            stop an airborne flight after S seconds (default 60)
   --first-opening-sides   ignore fold-order stacking sides from the problem file
   --states FILE           also write every frame's vertex positions as little-endian f32
   --quiet                 no progress output";

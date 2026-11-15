@@ -45,6 +45,11 @@ const MIN_SWEEPS: f64 = 18.0;
 const MOVING_CONTACT_SUBSTEPS: f64 = 8.0;
 /// Floor-contact cleanup passes before the first strain-convergence check (then every fourth).
 const MIN_CLEANUP_PASSES: usize = 4;
+/// Seconds before a flight that never touches down ends as a timeout. A thermal, tornado
+/// or fan can hold a light sheet up indefinitely; this lets those flights play out.
+const MAX_AIRBORNE_TIME: f64 = 60.0;
+/// Seconds after touchdown before a sheet that never comes to rest ends as a timeout.
+const MAX_SETTLING_TIME: f64 = 8.0;
 
 // ---- Timing of solver stages (optional; uses a host clock) ----
 // The import is named in full: current toolchains refuse to link a WebAssembly module with
@@ -484,7 +489,7 @@ impl Sim {
         }
         // A gust can keep a light sheet moving. Report a timeout honestly, and allow a late
         // touchdown its own full settling window.
-        let timeout = match self.touchdown { Some((t, _, _)) => self.time - t >= 8.0, None => self.time >= 12.0 };
+        let timeout = match self.touchdown { Some((t, _, _)) => self.time - t >= MAX_SETTLING_TIME, None => self.time >= MAX_AIRBORNE_TIME };
         if timeout { self.status = Status::Finished; return true; }
         false
     }
