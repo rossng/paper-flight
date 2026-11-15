@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const here=dirname(fileURLToPath(import.meta.url)),crate=join(here,'solver');
 const env={...process.env,PATH:`${process.env.PATH}:${join(homedir(),'.cargo','bin')}`};
 const cargo=(...args)=>{
-  try{execFileSync('cargo',['build','--release','--target','wasm32-unknown-unknown','--manifest-path',join(crate,'Cargo.toml'),...args],{env,stdio:['ignore','inherit','inherit']});}
+  try{execFileSync('cargo',['build','--release','--target','wasm32-unknown-unknown',...args],{env,cwd:crate,stdio:['ignore','inherit','inherit']});}
   catch(error){
     console.error(error.code==='ENOENT'
       ?'\nThe flight solver is written in Rust. Install a toolchain from https://rustup.rs, then run:\n  rustup target add wasm32-unknown-unknown\n'

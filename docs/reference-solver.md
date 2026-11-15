@@ -20,7 +20,7 @@ The two solvers share the problem set-up and nothing else. `reference/export.ts`
 | | Game (`wasm/solver`) | Reference (`reference/solver`) |
 | --- | --- | --- |
 | Time integration | Position-based (XPBD), 3 or more substeps per 1/120 s | Implicit BDF2, 64 steps per 1/120 s |
-| Elastic solve | Newton with a sparse direct solve to 1 µm, without contact, then 9–12 Gauss–Seidel sweeps; sweeps alone near the floor | Newton with a sparse direct solve, contact included, to 0.1 nm |
+| Elastic solve | Newton with a sparse direct solve to 1 µm, without contact, then 5–6 Gauss–Seidel sweeps; sweeps alone near the floor | Newton with a sparse direct solve, contact included, to 0.1 nm |
 | Stretch | Compliant constraints plus a ±2% strain limiter | Membrane energy only; no limiter is needed |
 | Air loads | Sampled as often as stability needs and held; shielding once per frame; one quadrature patch per clipped polygon | Every step, shielding every step, quadrature patches of at most 25 mm² |
 | Layer contact | Rest-coplanar candidates on a scan schedule, swept contact, contacts carried between substeps | Every vertex against every other panel, every step |

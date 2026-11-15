@@ -8,6 +8,8 @@
 //! faces) is built in TypeScript (src/physics/lifting-surface.ts) and passed in as
 //! `SurfaceSetup`. Aerodynamic resolution is independent of the structural triangulation.
 use crate::js;
+use crate::lanes::{Lanes, F2};
+use core::arch::wasm32::{f64x2, f64x2_mul, f64x2_splat, f64x2_sub, v128, v128_load, v128_store};
 use std::f64::consts::PI;
 
 /// Thin-sheet profile drag, attached or edge-on separated.
@@ -29,26 +31,32 @@ fn smooth(lo: f64, hi: f64, x: f64) -> f64 {
     t * t * (3.0 - 2.0 * t)
 }
 /// Upward-normal (planar z) velocity at (px,py) from a unit vortex segment a->b.
-#[inline]
-fn segment_wash(px: f64, py: f64, ax: f64, ay: f64, bx: f64, by: f64) -> f64 {
+#[inline(always)]
+fn segment_wash<T: Lanes>(px: T, py: T, ax: T, ay: T, bx: T, by: T) -> T {
     let (r1x, r1y, r2x, r2y) = (px - ax, py - ay, px - bx, py - by);
     let cz = r1x * r2y - r1y * r2x;
-    let l1 = js::hypot2(r1x, r1y);
-    let l2 = js::hypot2(r2x, r2y);
+    let l1 = (r1x * r1x + r1y * r1y).sqrt();
+    let l2 = (r2x * r2x + r2y * r2y).sqrt();
     let (r0x, r0y) = (bx - ax, by - ay);
     // Collinear points (including a segment's own extension) receive no normal velocity.
-    if cz.abs() < 1e-12 * (l1 * l2 + 1e-30) { return 0.0; }
-    ((r0x * r1x + r0y * r1y) / l1 - (r0x * r2x + r0y * r2y) / l2) / (FOUR_PI * cz)
+    let collinear = cz.abs().lt(T::splat(1e-12) * (l1 * l2 + T::splat(1e-30)));
+    T::select(collinear, T::splat(0.0), ((r0x * r1x + r0y * r1y) / l1 - (r0x * r2x + r0y * r2y) / l2) / (T::splat(FOUR_PI) * cz))
 }
 /// Upward-normal velocity at (px,py) from a unit semi-infinite vortex from (ax,ay)
 /// downstream along -x.
-#[inline]
-fn trailing_wash(px: f64, py: f64, ax: f64, ay: f64) -> f64 {
+#[inline(always)]
+fn trailing_wash<T: Lanes>(px: T, py: T, ax: T, ay: T) -> T {
     let (r1x, r1y) = (px - ax, py - ay);
     let cz = -r1y;
-    let l1 = js::hypot2(r1x, r1y);
-    if cz.abs() < 1e-12 * (l1 + 1e-30) { return 0.0; }
-    (1.0 - r1x / l1) / (FOUR_PI * cz)
+    let l1 = (r1x * r1x + r1y * r1y).sqrt();
+    let collinear = cz.abs().lt(T::splat(1e-12) * (l1 + T::splat(1e-30)));
+    T::select(collinear, T::splat(0.0), (T::splat(1.0) - r1x / l1) / (T::splat(FOUR_PI) * cz))
+}
+/// Downwash at (px,py) from a unit horseshoe vortex: a leg in from downstream to (bx,ya),
+/// the bound segment to (bx,yb), and a leg out from there downstream.
+#[inline(always)]
+fn horseshoe_wash<T: Lanes>(px: T, py: T, bx: T, ya: T, yb: T) -> T {
+    segment_wash(px, py, bx, ya, bx, yb) + trailing_wash(px, py, bx, yb) - trailing_wash(px, py, bx, ya)
 }
 #[inline]
 fn cell_hash(x: i32, y: i32, z: i32) -> usize {
@@ -517,13 +525,19 @@ pub fn solve_vortex_lattice(boundaries: &[f64], stations: usize, m: usize, lead:
         let i = p / m;
         let px = lead[p] - 0.75 * chord[p];
         let py = (boundaries[i] + boundaries[i + 1]) / 2.0;
-        for q in 0..n {
-            if !active(q) { continue; }
+        // Two columns at a time; an inactive panel's column stays zero.
+        let mut q = 0;
+        while q + 1 < n {
+            let (j, k) = (q / m, (q + 1) / m);
+            let bx = F2(f64x2(lead[q] - 0.25 * chord[q], lead[q + 1] - 0.25 * chord[q + 1]));
+            let wash = F2::splat(attachment[p]) * horseshoe_wash(F2::splat(px), F2::splat(py), bx, F2(f64x2(boundaries[j], boundaries[k])), F2(f64x2(boundaries[j + 1], boundaries[k + 1])));
+            if active(q) { matrix[row + q] = wash.lane(0); }
+            if active(q + 1) { matrix[row + q + 1] = wash.lane(1); }
+            q += 2;
+        }
+        if q < n && active(q) {
             let j = q / m;
-            let bx = lead[q] - 0.25 * chord[q];
-            let (ya, yb) = (boundaries[j], boundaries[j + 1]);
-            // Leg in from downstream to a, bound a->b, leg out from b downstream.
-            matrix[row + q] = attachment[p] * (segment_wash(px, py, bx, ya, bx, yb) + trailing_wash(px, py, bx, yb) - trailing_wash(px, py, bx, ya));
+            matrix[row + q] = attachment[p] * horseshoe_wash(px, py, lead[q] - 0.25 * chord[q], boundaries[j], boundaries[j + 1]);
         }
         matrix[row + p] += (1.0 - attachment[p]) * matrix[row + p] / attachment[p];
         matrix[row + n] = attachment[p] * speeds[p] * incidence[p];
@@ -541,7 +555,22 @@ pub fn solve_vortex_lattice(boundaries: &[f64], stations: usize, m: usize, lead:
         for i in k + 1..n {
             let f = matrix[i * width + k] / diagonal;
             if f != 0.0 && !f.is_nan() {
-                for j in k..=n { matrix[i * width + j] -= f * matrix[k * width + j]; }
+                // Row i minus f times row k, from column k on, two columns at a time.
+                let (above, below) = matrix.split_at_mut(i * width);
+                let (source, target) = (&above[k * width + k..k * width + width], &mut below[k..width]);
+                let pairs = source.len() / 2;
+                let factor = f64x2_splat(f);
+                for j in 0..pairs {
+                    // Both rows hold at least 2 * pairs values from here.
+                    unsafe {
+                        let (from, to) = (source.as_ptr().add(2 * j) as *const v128, target.as_mut_ptr().add(2 * j) as *mut v128);
+                        v128_store(to, f64x2_sub(v128_load(to), f64x2_mul(factor, v128_load(from))));
+                    }
+                }
+                if source.len() % 2 == 1 {
+                    let j = source.len() - 1;
+                    target[j] -= f * source[j];
+                }
             }
         }
     }

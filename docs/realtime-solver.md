@@ -121,7 +121,7 @@ Each substep away from the floor now begins with a direct solve of its elastic r
 - Newton steps on the same implicit-Euler problem the sweeps approximate, mass term plus membrane and hinge energy, with a sparse LDLᵀ factorisation. The ordering and fill depend only on the mesh and are computed once.
 - It starts from the previous substep's elastic correction, which brings it to one or two Newton steps in flight. One factorisation serves up to three steps of a solve.
 - A backtracking line search guards each step. The solve must converge to 1 µm within `newtonIterations` (default 16); otherwise the substep falls back to sweeps alone, as before.
-- The sweeps then start from positions and multipliers that already satisfy every membrane and hinge, so they only reconcile layer contact, self-contact and the strain envelope. They run `contactSweepShare` (default half) of `iterations`, and stop early once a sweep moves nothing. On the Original dart, which has no layers, that is almost always after one.
+- The sweeps then start from positions and multipliers that already satisfy every membrane and hinge, so they only reconcile layer contact, self-contact and the strain envelope. They run `contactSweepShare` of `iterations` (half when this was written; [a quarter since](wasm-solver.md#faster-kernels-2026-11-15)), and stop early once a sweep moves nothing. On the Original dart, which has no layers, that is almost always after one.
 - Substeps with a vertex near the floor use sweeps alone. A sheet held bent by contact is where Newton on the elastic energy alone converges slowly, and landing is not what the reference validates.
 
 `elasticSolve: 'sweeps'` restores the previous solver, and `npm run benchmark:realtime -- --sweeps` times it.

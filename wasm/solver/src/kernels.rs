@@ -274,22 +274,21 @@ pub unsafe extern "C" fn ground_solve_velocity(ground: *mut Ground, height: f64,
 
 /// Membranes from the face, md and cd slots with compliance in scratch A and multipliers in B.
 unsafe fn staged_membranes() -> MembraneBatch {
-    MembraneBatch { faces: take_i(field::FACES), md: take(field::MEMBRANE_MD), cd: take(field::MEMBRANE_CD), alpha: take(A), lambda: take(B) }
+    MembraneBatch::new(take_i(field::FACES), take(field::MEMBRANE_MD), take(field::MEMBRANE_CD), take(A), take(B))
 }
 /// Hinges from the id and rest slots with compliance in scratch C, multipliers in D and
 /// plastic offsets in E.
 unsafe fn staged_hinges() -> HingeBatch {
     let (ids, rest, offsets) = (take_i(field::HINGE_IDS), take(field::HINGE_REST), take(E));
-    let count = rest.len();
-    let mut hinges = HingeBatch { ids, rest, offset: vec![f64::NAN; count], target_sin: vec![0.0; count], target_cos: vec![0.0; count], alpha: take(C), lambda: take(D) };
+    let mut hinges = HingeBatch::new(ids, rest, take(C), take(D));
     for (j, &offset) in offsets.iter().enumerate() { hinges.set_offset(j, offset); }
     hinges
 }
 #[no_mangle]
 pub unsafe extern "C" fn elastic_create(vertices: usize, blocks: usize) -> *mut ElasticSolver {
     let mut solver = ElasticSolver::new(vertices, ElasticSetup {
-        perm: take_i(field::PERM), ap: take_i(field::AP), ai: take_i(field::AI), source: take_i(field::SOURCE), parent: take_i(field::PARENT),
-        lp: take_i(field::LP), diagonal: take_i(field::DIAGONAL), face_slots: take_i(field::FACE_SLOTS), hinge_slots: take_i(field::HINGE_SLOTS),
+        perm: take_i(field::PERM), ap: take_i(field::AP), ai: take_i(field::AI), source: take_i(field::SOURCE),
+        diagonal: take_i(field::DIAGONAL), face_slots: take_i(field::FACE_SLOTS), hinge_slots: take_i(field::HINGE_SLOTS),
         block_len: blocks,
     });
     solver.reset();

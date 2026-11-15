@@ -44,7 +44,7 @@ const solver=(await WebAssembly.instantiate(await load(),{env:{now:()=>performan
 /** Staging slots: the solver's inputs, then scratch slots for single kernels. */
 export const F64={x:21,old:22,w:23,a:24,b:25,c:26,d:27,e:28,scalars:0,positions:1,velocities:2,masses:3,tributary:4,md:5,cd:6,membraneArea:7,hingeRest:8,hingeK:9,edgeRest:10,boundaries:12,patchWeights:13,patchFraction:14,faceSigns:15,
   layerOrientation:16,layerSign:17,layerSide:18,areaWeights:19,tieWeights:20};
-export const I32={ids:33,flags:34,faces:0,hingeIds:1,hingeCrease:2,edgeIds:3,patchFace:4,patchStation:5,patchPanel:6,faceOwners:7,perm:8,ap:9,ai:10,source:11,parent:12,lp:13,diagonal:14,faceSlots:15,hingeSlots:16,
+export const I32={ids:33,flags:34,faces:0,hingeIds:1,hingeCrease:2,edgeIds:3,patchFace:4,patchStation:5,patchPanel:6,faceOwners:7,perm:8,ap:9,ai:10,source:11,diagonal:14,faceSlots:15,hingeSlots:16,
   layerVertex:17,layerFaceIndex:18,layerFaces:19,layerAmbiguous:20,layerSideIndex:21,layerChosen:22,neighbors:23,selfEdges:24,faceTreeLeaves:25,faceTreeRight:26,faceTreeEscape:27,
   edgeTreeLeaves:28,edgeTreeRight:29,edgeTreeEscape:30,landmarks:31,tieIds:32};
 /** The fun air features of the weather, by the number the solver knows each as. */
@@ -111,7 +111,7 @@ export class SolverFlight {
     i32(I32.faces,mesh.faces.flat());i32(I32.hingeIds,source.hingeBatch.ids);i32(I32.hingeCrease,mesh.hinges.map(h=>h.crease?1:0));i32(I32.edgeIds,source.edgeBatch.ids);
     i32(I32.patchFace,surface.patches.map(q=>q.face));i32(I32.patchStation,surface.patches.map(q=>q.station));i32(I32.patchPanel,surface.patches.map(q=>q.panel??q.station));
     i32(I32.faceOwners,surface.owners??[]);
-    i32(I32.perm,elastic.perm);i32(I32.ap,elastic.ap);i32(I32.ai,elastic.ai);i32(I32.source,elastic.source);i32(I32.parent,elastic.parent);i32(I32.lp,elastic.lp);
+    i32(I32.perm,elastic.perm);i32(I32.ap,elastic.ap);i32(I32.ai,elastic.ai);i32(I32.source,elastic.source);
     i32(I32.diagonal,elastic.diagonal);i32(I32.faceSlots,elastic.faceSlots);i32(I32.hingeSlots,elastic.hingeSlots);
     i32(I32.layerVertex,layers.vertex);i32(I32.layerFaceIndex,layers.faceIndex);i32(I32.layerFaces,layers.faces);i32(I32.layerAmbiguous,layers.ambiguous);
     i32(I32.layerSideIndex,layers.sideIndex);i32(I32.layerChosen,layers.chosen);

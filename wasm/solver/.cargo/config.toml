@@ -1,0 +1,4 @@
+# The solver's kernels use WebAssembly's fixed-width SIMD (src/lanes.rs). Cargo reads this
+# file when it is run from this directory, as wasm/build.mjs does.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]
