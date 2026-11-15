@@ -47,6 +47,9 @@ const MOVING_CONTACT_SUBSTEPS: f64 = 8.0;
 const MIN_CLEANUP_PASSES: usize = 4;
 
 // ---- Timing of solver stages (optional; uses a host clock) ----
+// The import is named in full: current toolchains refuse to link a WebAssembly module with
+// symbols left undefined.
+#[link(wasm_import_module = "env")]
 extern "C" {
     /// Host clock in milliseconds (performance.now), only called while profiling.
     fn now() -> f64;
